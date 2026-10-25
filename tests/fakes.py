@@ -1,16 +1,16 @@
 """Deterministic stand-ins for model-backed components (no GPU, no network)."""
-import hashlib
 import re
 
+from smriti.models.hash_embed import HashEmbedder
+from smriti.models.nim import LlmReply
 from smriti.models.pii import PiiResult
 
-DIM = 64
 
-
-class FakeEmbedder:
-    """Bag-of-words hashed into DIM buckets: texts sharing words are near each other."""
+class FakeEmbedder(HashEmbedder):
+    """HashEmbedder that counts calls and can be made to fail."""
 
     def __init__(self, fail: bool = False):
+        super().__init__(dim=64)
         self.fail = fail
         self.calls = 0
 
@@ -18,14 +18,7 @@ class FakeEmbedder:
         self.calls += 1
         if self.fail:
             raise RuntimeError("embedder down")
-        out = []
-        for text in texts:
-            vec = [0.0] * DIM
-            for word in re.findall(r"\w+", text.lower()):
-                vec[int(hashlib.sha256(word.encode()).hexdigest(), 16) % DIM] += 1.0
-            vec[0] += 1e-3                      # never the zero vector
-            out.append(vec)
-        return out
+        return super().embed(texts)
 
 
 class FakeJudge:
@@ -71,3 +64,18 @@ class FakeSummarizer:
         if self.fail:
             raise RuntimeError("summarizer down")
         return self.output if self.output is not None else " / ".join(texts)
+
+
+class ScriptedChat:
+    """Returns the given replies in order; records the messages it was sent."""
+
+    def __init__(self, replies: list[LlmReply | Exception]):
+        self.replies = list(replies)
+        self.sent: list[list[dict]] = []
+
+    def chat(self, messages: list[dict], tools: list[dict]) -> LlmReply:
+        self.sent.append([dict(m) for m in messages])
+        reply = self.replies.pop(0) if self.replies else LlmReply("done", ())
+        if isinstance(reply, Exception):
+            raise reply
+        return reply

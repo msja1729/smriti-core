@@ -33,6 +33,12 @@ class GatewayConfig:
     heuristics: HeuristicConfig = field(default_factory=HeuristicConfig)
 
 
+# Arm presets (SPEC §10). A0: plain store, everything in one prompt section, no defense.
+A0 = GatewayConfig(label_provenance=False, write_flagging=False, read_escaping=False,
+                   action_check=False, use_judge=False, quota_low_writes_per_session=10**9)
+A2 = GatewayConfig()
+
+
 class Gateway:
     def __init__(
         self,
@@ -64,7 +70,7 @@ class Gateway:
 
     def _write(self, text, source, tenant, session_id, start) -> WriteResult:
         cfg = self.config
-        trust = trust_for(source, cfg.med_sources) if cfg.label_provenance else Trust.HIGH
+        trust = self.trust_of(source)
         label = Label(source, tenant, trust, Sensitivity.PUBLIC, frozenset())
         s = self._screen(text, label)
 
@@ -81,6 +87,12 @@ class Gateway:
         self.store.append_ledger(tenant, "quarantine" if status == "quarantined" else "write",
                                  memory.id, {**s.detail, "flags": sorted(s.flags)})
         return WriteResult(status, memory.id, s.flags, _ms(start))
+
+    def trust_of(self, source: str) -> Trust:
+        """Trust a source gets under this config (everything HIGH without provenance)."""
+        if not self.config.label_provenance:
+            return Trust.HIGH
+        return trust_for(source, self.config.med_sources)
 
     def _screen(self, text: str, label: Label):
         cfg = self.config
