@@ -61,11 +61,13 @@ class Gateway:
         self.summarizer = summarizer
         self.config = config
         self._low_writes: Counter[tuple[str, str, str]] = Counter()
+        self._model_s = 0.0       # time spent in model calls during the current operation
 
     # -- write -------------------------------------------------------------------------
 
     def write(self, text: str, source: str, tenant: str, session_id: str) -> WriteResult:
         start = time.perf_counter()
+        self._model_s = 0.0
         try:
             return self._write(text, source, tenant, session_id, start)
         except Exception as e:
@@ -91,7 +93,8 @@ class Gateway:
         status = "quarantined" if "quarantined" in s.flags else "stored"
         self.store.append_ledger(tenant, "quarantine" if status == "quarantined" else "write",
                                  memory.id, {**s.detail, "flags": sorted(s.flags),
-                                             "latency_ms": _ms(start)})
+                                             "latency_ms": _ms(start),
+                                             "model_ms": self._model_s * 1000})
         return WriteResult(status, memory.id, s.flags, _ms(start))
 
     def trust_of(self, source: str) -> Trust:
@@ -104,11 +107,11 @@ class Gateway:
         cfg = self.config
         return screen(text, label, flagging=cfg.write_flagging, use_judge=cfg.use_judge,
                       judge_all=cfg.judge_all_inputs, heuristics=cfg.heuristics,
-                      judge=self.judge, pii=self.pii)
+                      judge=_Timed(self.judge, self), pii=self.pii)
 
     def _store(self, memory: Memory) -> None:
         # Quarantined memories are never retrieved, so they need no embedding.
-        embedding = None if "quarantined" in memory.flags else self.embedder.embed([memory.text], "passage")[0]
+        embedding = None if "quarantined" in memory.flags else _Timed(self.embedder, self).embed([memory.text], "passage")[0]
         self.store.insert(memory, embedding)
 
     # -- consolidate -------------------------------------------------------------------
@@ -138,14 +141,17 @@ class Gateway:
 
     def read(self, query: str, tenant: str, k: int = 8) -> RenderedContext:
         start = time.perf_counter()
+        self._model_s = 0.0
         results: list[Memory] = []
         try:
-            results = self.store.search(tenant, self.embedder.embed([query], "query")[0], k)
+            results = self.store.search(tenant, _Timed(self.embedder, self).embed([query], "query")[0],
+                                       k)
             if any(m.label.tenant != tenant for m in results):
                 raise RuntimeError("store returned another tenant's memory")
             ctx = render(results, secrets.token_hex(8), escaping=self.config.read_escaping)
             self.store.append_ledger(tenant, "read", None, {
-                "memory_ids": ctx.memory_ids, "latency_ms": _ms(start)})
+                "memory_ids": ctx.memory_ids, "latency_ms": _ms(start),
+                "model_ms": self._model_s * 1000})
             return ctx
         except Exception as e:
             high = [m for m in results if m.label.tenant == tenant and m.label.trust == Trust.HIGH]
@@ -175,6 +181,25 @@ class Gateway:
             self.store.append_ledger(tenant, op, memory_id, detail)
         except Exception:
             pass                   # the decision is already fail-closed; never mask it
+
+
+class _Timed:
+    """Proxy that adds the time of every call on a model client to the gateway's model
+    clock, so the gateway's own overhead can be reported apart from NVIDIA model calls."""
+
+    def __init__(self, inner, gateway: "Gateway"):
+        self._inner, self._gateway = inner, gateway
+
+    def __getattr__(self, name):
+        fn = getattr(self._inner, name)
+
+        def timed(*args, **kwargs):
+            t = time.perf_counter()
+            try:
+                return fn(*args, **kwargs)
+            finally:
+                self._gateway._model_s += time.perf_counter() - t
+        return timed
 
 
 def _ms(start: float) -> float:

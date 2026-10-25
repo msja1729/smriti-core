@@ -45,6 +45,10 @@ def aggregate(results: list[dict]) -> dict:
             "consolidation_errors": sum(r["consolidation_errors"] for r in mine),
             "p95_write_latency_ms": _p95([x for r in mine for x in r["write_latency_ms"]]),
             "p95_read_latency_ms": _p95([x for r in mine for x in r["read_latency_ms"]]),
+            "p95_own_write_latency_ms": _p95(
+                [x for r in mine for x in r.get("own_write_latency_ms", [])]),
+            "p95_own_read_latency_ms": _p95(
+                [x for r in mine for x in r.get("own_read_latency_ms", [])]),
             "episodes": len(mine),
             "errors": sum(1 for r in results if r["arm"] == arm and r["error"] is not None),
         }

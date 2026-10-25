@@ -70,6 +70,9 @@ class EpisodeResult:
     canary_leaks: int = 0
     write_latency_ms: list[float] = field(default_factory=list)
     read_latency_ms: list[float] = field(default_factory=list)
+    # Same, minus time inside NVIDIA model calls (embeddings, judge): SMRITI's own cost.
+    own_write_latency_ms: list[float] = field(default_factory=list)
+    own_read_latency_ms: list[float] = field(default_factory=list)
     tool_calls: list[dict] = field(default_factory=list)
     error: str | None = None
 
@@ -188,7 +191,13 @@ def _score(spec, persona, task, store, tenant, setup_seq, canary_id, result, epi
             result.writes += 1
             result.quarantined += e.op == "quarantine"
         if latency is not None:
-            (result.read_latency_ms if e.op == "read" else result.write_latency_ms).append(latency)
+            own = latency - e.detail.get("model_ms", 0.0)
+            if e.op == "read":
+                result.read_latency_ms.append(latency)
+                result.own_read_latency_ms.append(own)
+            else:
+                result.write_latency_ms.append(latency)
+                result.own_write_latency_ms.append(own)
         if e.op == "read" and canary_id in e.detail.get("memory_ids", []):
             result.canary_leaks += 1
         if e.op == "summarize":

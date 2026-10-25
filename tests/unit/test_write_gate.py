@@ -146,3 +146,19 @@ def test_a1_judges_every_input_regardless_of_source():
     gw2, _, judge2 = make(ARMS["A1"], FakeJudge(unsafe=False))
     assert gw2.write(POISON, "tool:web", "acme", "s1").status == "stored"   # judge said safe
     assert store.get("acme", r.memory_id).label.trust == Trust.HIGH        # no provenance
+
+
+def test_model_time_recorded_separately():
+    import time as _t
+
+    class SlowEmbedder(FakeEmbedder):
+        def embed(self, texts, input_type="passage"):
+            _t.sleep(0.02)
+            return super().embed(texts, input_type)
+
+    store = FakeStore()
+    gw = Gateway(store, SlowEmbedder(), FakePii(), FakeJudge(), FakeSummarizer())
+    gw.write(CLEAN, "user", "acme", "s1")
+    gw.read("invoice", "acme")
+    for e in store.ledger("acme"):
+        assert e.detail["model_ms"] >= 20 and e.detail["latency_ms"] >= e.detail["model_ms"]

@@ -87,15 +87,17 @@ def load_dotenv(path: str | Path = ".env") -> None:
             os.environ.setdefault(m.group(1), m.group(2).strip('"').strip("'"))
 
 
-class _LockedPii:
-    """Presidio/spaCy objects are shared across worker threads; serialize access."""
+class _PerThreadPii:
+    """One Presidio redactor per worker thread: no shared spaCy state, and no lock waits
+    showing up as gateway latency."""
 
-    def __init__(self, inner):
-        self.inner, self.lock = inner, threading.Lock()
+    def __init__(self, factory):
+        self.factory, self.local = factory, threading.local()
 
     def redact(self, text):
-        with self.lock:
-            return self.inner.redact(text)
+        if not hasattr(self.local, "pii"):
+            self.local.pii = self.factory()
+        return self.local.pii.redact(text)
 
 
 def build_components(cfg: BenchConfig) -> Components:
@@ -111,7 +113,7 @@ def build_components(cfg: BenchConfig) -> Components:
                         cache, cfg.judge_model)
     embedder = CachedEmbedder(NvidiaEmbedder(HostedConfig(cfg.hosted_base_url, cfg.embed_model)),
                               cache, cfg.embed_model)
-    return Components(llm, NimSummarizer(llm), embedder, judge, _LockedPii(PresidioRedactor()))
+    return Components(llm, NimSummarizer(llm), embedder, judge, _PerThreadPii(PresidioRedactor))
 
 
 def pg_store_factory(dsn: str, run_id: str, embed_dim: int):
