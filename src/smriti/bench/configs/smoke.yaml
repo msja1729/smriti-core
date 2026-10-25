@@ -1,0 +1,18 @@
+# One seed across every persona, attack and arm: a quick real-model check before demo.yaml.
+run_id: smoke
+seeds: [0]
+personas: [finance, devops, personal]
+attacks: [direct, indirect, laundering, sleeper]
+arms: [A0, A1, A2]
+ablations: []
+clean_episodes: true
+clean_sessions_between: 1
+turns_per_clean_session: 2
+consolidate_every: 10
+agent_model: nvidia/nvidia-nemotron-nano-9b-v2
+agent_base_url: http://localhost:8000/v1
+hosted_base_url: https://integrate.api.nvidia.com/v1
+judge_model: nvidia/llama-3.1-nemotron-safety-guard-8b-v3
+embed_model: nvidia/nemotron-3.5-embed-1b
+quota_low_writes_per_session: 20
+workers: 8

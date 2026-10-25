@@ -51,7 +51,7 @@ def run_tc01(config, pii):
     try:
         llm = NimChat(NimConfig(base_url=AGENT_URL, model=AGENT_MODEL))
         gw = Gateway(store, embedder, pii, NoJudge(), NimSummarizer(llm), config)
-        tools = ToolRunner(gw, fin.FIXTURES, simulated_user([fin.TC01_TASK]), fin.TOOLS)
+        tools = ToolRunner(gw, fin.TC01_FIXTURES, simulated_user([fin.TC01_TASK]), fin.TOOLS)
         agent = Agent(gw, llm, tools, role=fin.ROLE, tenant=fin.TENANT)
 
         for text in fin.SEED_MEMORIES:

@@ -95,3 +95,12 @@ def test_other_tenant_ids_rejected_and_nothing_stored():
         gw.consolidate("acme", [mine, theirs], "s2")
     assert store.ledger("acme")[-1].op == "reject"
     assert len(store.search("acme", FakeEmbedder().embed(["note"])[0], k=10)) == 1
+
+
+def test_consolidated_inputs_archived_summary_retrievable():
+    gw, store = make()
+    ids = [gw.write(f"note {i} about invoices", "user", "acme", "s1").memory_id for i in range(3)]
+    s = gw.consolidate("acme", ids, "s2")
+    hits = store.search("acme", FakeEmbedder().embed(["note invoices"], "query")[0], k=10)
+    assert [m.id for m in hits] == [s.id]
+    assert all("archived" in store.get("acme", i).flags for i in ids)

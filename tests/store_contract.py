@@ -110,7 +110,19 @@ def check_reset(store):
     assert store.tool_log("ep1") == []
 
 
+def check_archive_is_tenant_scoped_and_hides_from_search(store):
+    mine, theirs = mem("mine", tenant="a"), mem("theirs", tenant="b")
+    store.insert(mine, [1.0, 0.0, 0.0])
+    store.insert(theirs, [1.0, 0.0, 0.0])
+    store.archive("a", [mine.id, theirs.id])
+    store.archive("a", [mine.id])                      # idempotent
+    assert store.search("a", [1.0, 0.0, 0.0], k=10) == []
+    assert store.get("a", mine.id).flags == {"archived"}
+    assert [m.text for m in store.search("b", [1.0, 0.0, 0.0], k=10)] == ["theirs"]
+
+
 CHECKS = [
+    check_archive_is_tenant_scoped_and_hides_from_search,
     check_roundtrip,
     check_get_is_tenant_scoped,
     check_search_is_tenant_scoped,

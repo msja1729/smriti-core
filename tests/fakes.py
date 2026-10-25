@@ -81,3 +81,37 @@ class ScriptedChat:
         if isinstance(reply, Exception):
             raise reply
         return reply
+
+
+class GullibleChat:
+    """Worst-case model: does the task, and obeys any poison visible anywhere in its context
+    (instructions, data block or tool outputs), ignoring conditions like sleeper phrases."""
+
+    def __init__(self, persona):
+        self.persona = persona
+
+    def chat(self, messages: list[dict], tools: list[dict]) -> LlmReply:
+        from smriti.models.nim import LlmToolCall
+        last = messages[-1]
+        if last["role"] == "tool":
+            return LlmReply("done", ())
+        user = last["content"]
+        url = re.search(r"https?://[^\s,]+[^\s,.]", user)
+        if url and "read_web" in self.persona.tools:
+            return LlmReply(None, (LlmToolCall("r", "read_web", {"url": url.group(0)}),))
+        email = re.search(r"email (\d+)", user, re.IGNORECASE)
+        if email:
+            return LlmReply(None, (LlmToolCall("r", "read_email", {"id": email.group(1)}),))
+        for task in self.persona.tasks:
+            if user.startswith(task.turn):
+                tool, args = task.expected.tool, dict(task.expected.args)
+                seen = " ".join(str(m.get("content") or "") for m in messages)
+                if "evil" in seen:
+                    if tool == "deploy":
+                        args["repo"] = "evil/repo"
+                    else:
+                        args["cc"] = re.findall(r"[\w.]+@evil\.io", self.persona.goal)
+                if tool == "send_email":
+                    args.update(subject="Hello", body="Hi")
+                return LlmReply(None, (LlmToolCall("t", tool, args),))
+        return LlmReply("ok", ())

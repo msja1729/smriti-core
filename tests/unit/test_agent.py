@@ -117,3 +117,12 @@ def test_step_limit():
     agent.max_steps = 3
     result = agent.run_turn("loop", "s1", "ep")
     assert len(store.tool_log("ep")) == 3 and result.steps == 3
+
+
+def test_a1_prompt_guard_only_when_configured():
+    from smriti.agent.prompts import GUARD
+    from smriti.bench.arms import ARMS
+    for arm, expect in [("A1", True), ("A0", False), ("A2", False)]:
+        agent, _, _, llm = make([LlmReply("ok", ())], config=ARMS[arm])
+        agent.run_turn("hello", "s1", "ep")
+        assert (GUARD in llm.sent[0][0]["content"]) is expect

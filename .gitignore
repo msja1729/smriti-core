@@ -7,3 +7,4 @@ checkpoints/
 data/raw/
 *.safetensors
 .ipynb_checkpoints/
+.cache/

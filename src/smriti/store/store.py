@@ -31,6 +31,7 @@ class Store(Protocol):
     def insert(self, memory: Memory, embedding: list[float] | None) -> None: ...
     def get(self, tenant: str, memory_id: str) -> Memory | None: ...
     def search(self, tenant: str, embedding: list[float], k: int) -> list[Memory]: ...
+    def archive(self, tenant: str, memory_ids: list[str]) -> None: ...
     def append_ledger(self, tenant: str, op: str, memory_id: str | None, detail: dict) -> None: ...
     def ledger(self, tenant: str) -> list[LedgerEntry]: ...
     def log_tool_call(self, call: ToolCall) -> None: ...
@@ -60,9 +61,14 @@ SEARCH = f"""SELECT {_MEMORY_COLUMNS}
 FROM memories m
 WHERE m.tenant = %(tenant)s
   AND m.embedding IS NOT NULL
-  AND NOT ('quarantined' = ANY(m.flags))
+  AND NOT (m.flags && ARRAY['quarantined', 'archived'])
 ORDER BY m.embedding <=> %(query)s::vector
 LIMIT %(k)s"""
+
+# Consolidated inputs leave retrieval; the summary stands in for them.
+ARCHIVE = """UPDATE memories SET flags = array_append(flags, 'archived')
+WHERE tenant = %(tenant)s AND id = ANY(%(ids)s::uuid[])
+  AND NOT ('archived' = ANY(flags))"""
 
 APPEND_LEDGER = """INSERT INTO ledger (tenant, op, memory_id, detail)
 VALUES (%(tenant)s, %(op)s, %(memory_id)s, %(detail)s)"""
@@ -153,6 +159,9 @@ class PgStore:
         rows = self._conn.execute(
             SEARCH, {"tenant": tenant, "query": _vector(embedding), "k": k}).fetchall()
         return [_row_to_memory(r) for r in rows]
+
+    def archive(self, tenant: str, memory_ids: list[str]) -> None:
+        self._conn.execute(ARCHIVE, {"tenant": tenant, "ids": list(memory_ids)})
 
     def append_ledger(self, tenant: str, op: str, memory_id: str | None, detail: dict) -> None:
         self._conn.execute(APPEND_LEDGER, {

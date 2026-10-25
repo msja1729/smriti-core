@@ -1,6 +1,7 @@
 """In-memory store with the same interface as PgStore, for unit tests (no DB)."""
 import math
 import time
+from dataclasses import replace
 
 from smriti.gateway.labels import CrossTenantError, Memory, ToolCall
 from smriti.store.store import LedgerEntry
@@ -36,10 +37,18 @@ class FakeStore:
         candidates = [
             (_cosine_distance(emb, embedding), m)
             for m, emb in self._memories.values()
-            if m.label.tenant == tenant and emb is not None and "quarantined" not in m.flags
+            if m.label.tenant == tenant and emb is not None
+            and not m.flags & {"quarantined", "archived"}
         ]
         candidates.sort(key=lambda c: c[0])
         return [m for _, m in candidates[:k]]
+
+    def archive(self, tenant: str, memory_ids: list[str]) -> None:
+        for mid in memory_ids:
+            stored = self._memories.get(mid)
+            if stored is not None and stored[0].label.tenant == tenant:
+                m, emb = stored
+                self._memories[mid] = (replace(m, flags=m.flags | {"archived"}), emb)
 
     def append_ledger(self, tenant: str, op: str, memory_id: str | None, detail: dict) -> None:
         self._ledger.append(

@@ -70,7 +70,8 @@ class Agent:
     def _retrieve(self, s: TurnState) -> dict:
         ctx = self.gateway.read(s["user_text"], self.tenant, self.k)
         return {"ctx": ctx, "messages": [
-            {"role": "system", "content": system_prompt(self.role, ctx)},
+            {"role": "system", "content": system_prompt(
+                self.role, ctx, guard=self.gateway.config.prompt_guard)},
             {"role": "user", "content": s["user_text"]}]}
 
     def _think(self, s: TurnState) -> dict:

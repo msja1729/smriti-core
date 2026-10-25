@@ -27,6 +27,11 @@ class GatewayConfig:
     read_escaping: bool = True
     action_check: bool = True
     use_judge: bool = True
+    # A1 baseline only: judge every input (no heuristics, no provenance) and add a
+    # prompt line telling the model to ignore instructions found in memory.
+    judge_all_inputs: bool = False
+    prompt_guard: bool = False
+    archive_consolidated: bool = True
     quota_low_writes_per_session: int = 20
     med_sources: frozenset[str] = frozenset({"tool:calendar", "tool:crm"})
     risky_tools: frozenset[str] = frozenset({"send_email", "pay", "deploy", "share_file"})
@@ -85,7 +90,8 @@ class Gateway:
             self._low_writes[quota_key] += 1
         status = "quarantined" if "quarantined" in s.flags else "stored"
         self.store.append_ledger(tenant, "quarantine" if status == "quarantined" else "write",
-                                 memory.id, {**s.detail, "flags": sorted(s.flags)})
+                                 memory.id, {**s.detail, "flags": sorted(s.flags),
+                                             "latency_ms": _ms(start)})
         return WriteResult(status, memory.id, s.flags, _ms(start))
 
     def trust_of(self, source: str) -> Trust:
@@ -97,7 +103,8 @@ class Gateway:
     def _screen(self, text: str, label: Label):
         cfg = self.config
         return screen(text, label, flagging=cfg.write_flagging, use_judge=cfg.use_judge,
-                      heuristics=cfg.heuristics, judge=self.judge, pii=self.pii)
+                      judge_all=cfg.judge_all_inputs, heuristics=cfg.heuristics,
+                      judge=self.judge, pii=self.pii)
 
     def _store(self, memory: Memory) -> None:
         # Quarantined memories are never retrieved, so they need no embedding.
@@ -117,6 +124,8 @@ class Gateway:
             # Screening may raise sensitivity (new PII) but never trust: label stays the join.
             memory = Memory(str(uuid.uuid4()), s.text, s.label, s.flags, session_id, time.time())
             self._store(memory)
+            if self.config.archive_consolidated:
+                self.store.archive(tenant, list(memory_ids))
         except Exception as e:
             self._ledger_best_effort(tenant, "reject", None,
                                      {"reason": "consolidate_failed", "error": type(e).__name__})
@@ -128,13 +137,15 @@ class Gateway:
     # -- read --------------------------------------------------------------------------
 
     def read(self, query: str, tenant: str, k: int = 8) -> RenderedContext:
+        start = time.perf_counter()
         results: list[Memory] = []
         try:
             results = self.store.search(tenant, self.embedder.embed([query], "query")[0], k)
             if any(m.label.tenant != tenant for m in results):
                 raise RuntimeError("store returned another tenant's memory")
             ctx = render(results, secrets.token_hex(8), escaping=self.config.read_escaping)
-            self.store.append_ledger(tenant, "read", None, {"memory_ids": ctx.memory_ids})
+            self.store.append_ledger(tenant, "read", None, {
+                "memory_ids": ctx.memory_ids, "latency_ms": _ms(start)})
             return ctx
         except Exception as e:
             high = [m for m in results if m.label.tenant == tenant and m.label.trust == Trust.HIGH]

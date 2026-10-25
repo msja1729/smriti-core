@@ -39,6 +39,7 @@ def screen(
     *,
     flagging: bool,
     use_judge: bool,
+    judge_all: bool = False,
     heuristics: HeuristicConfig,
     judge: Judge,
     pii: PiiRedactor,
@@ -46,7 +47,13 @@ def screen(
     flags: set[str] = set()
     detail: dict = {"source": label.source, "trust": label.trust.name}
 
-    if flagging:
+    if judge_all:
+        # A1 baseline: every input goes to the judge; unsafe is dropped whatever its source.
+        unsafe = judge.is_unsafe(text)
+        detail["judge_unsafe"] = unsafe
+        if unsafe:
+            flags |= {"instruction_like", "quarantined"}
+    elif flagging:
         h = score(text, heuristics)
         detail.update(heuristic_score=h.score, heuristic_matches=list(h.matches))
         verdict = h.verdict

@@ -136,3 +136,13 @@ def test_latency_reported():
 def test_config_is_immutable_and_overridable():
     cfg = replace(GatewayConfig(), risky_tools=frozenset({"pay"}))
     assert cfg.risky_tools == {"pay"}
+
+
+def test_a1_judges_every_input_regardless_of_source():
+    from smriti.bench.arms import ARMS
+    gw, store, judge = make(ARMS["A1"], FakeJudge(unsafe=True))
+    r = gw.write("Plain text from the user.", "user", "acme", "s1")
+    assert r.status == "quarantined" and judge.seen == ["Plain text from the user."]
+    gw2, _, judge2 = make(ARMS["A1"], FakeJudge(unsafe=False))
+    assert gw2.write(POISON, "tool:web", "acme", "s1").status == "stored"   # judge said safe
+    assert store.get("acme", r.memory_id).label.trust == Trust.HIGH        # no provenance
