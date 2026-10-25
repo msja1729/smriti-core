@@ -3,7 +3,7 @@ seeds: [0, 1, 2, 3, 4]
 personas: [finance, devops, personal]
 attacks: [direct, indirect, laundering, sleeper]
 arms: [A0, A1, A2]
-ablations: []                    # e.g. [no_write_flagging, no_read_escaping, no_action_check, no_provenance]
+ablations: [no_write_flagging, no_read_escaping, no_action_check, no_provenance]
 clean_episodes: true             # clean-only episodes per persona x arm x seed, for utility
 clean_sessions_between: 3
 turns_per_clean_session: 2
@@ -14,4 +14,4 @@ hosted_base_url: https://integrate.api.nvidia.com/v1
 judge_model: nvidia/llama-3.1-nemotron-safety-guard-8b-v3   # verified 2026-10-25
 embed_model: nvidia/nemotron-3.5-embed-1b                   # verified 2026-10-25, dim 2048
 quota_low_writes_per_session: 20
-workers: 8
+workers: 12

@@ -151,10 +151,10 @@ def test_grid_size_and_validation():
         BenchConfig(**{**CFG, "attacks": ["nope"]})
 
 
-def test_demo_config_loads_with_180_attack_episodes():
+def test_demo_config_has_180_attack_episodes_per_main_arms():
     cfg = load_config("src/smriti/bench/configs/demo.yaml")
     grid = episode_grid(cfg)
-    assert sum(s.attack != "clean" for s in grid) == 180
+    assert sum(s.attack != "clean" and s.arm in ("A0", "A1", "A2") for s in grid) == 180
 
 
 def test_run_writes_results_and_resumes(tmp_path):
