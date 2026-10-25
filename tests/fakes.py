@@ -13,12 +13,14 @@ class FakeEmbedder(HashEmbedder):
         super().__init__(dim=64)
         self.fail = fail
         self.calls = 0
+        self.input_types: list[str] = []
 
-    def embed(self, texts: list[str]) -> list[list[float]]:
+    def embed(self, texts: list[str], input_type: str = "passage") -> list[list[float]]:
         self.calls += 1
+        self.input_types.append(input_type)
         if self.fail:
             raise RuntimeError("embedder down")
-        return super().embed(texts)
+        return super().embed(texts, input_type)
 
 
 class FakeJudge:

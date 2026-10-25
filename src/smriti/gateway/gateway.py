@@ -101,7 +101,7 @@ class Gateway:
 
     def _store(self, memory: Memory) -> None:
         # Quarantined memories are never retrieved, so they need no embedding.
-        embedding = None if "quarantined" in memory.flags else self.embedder.embed([memory.text])[0]
+        embedding = None if "quarantined" in memory.flags else self.embedder.embed([memory.text], "passage")[0]
         self.store.insert(memory, embedding)
 
     # -- consolidate -------------------------------------------------------------------
@@ -130,7 +130,7 @@ class Gateway:
     def read(self, query: str, tenant: str, k: int = 8) -> RenderedContext:
         results: list[Memory] = []
         try:
-            results = self.store.search(tenant, self.embedder.embed([query])[0], k)
+            results = self.store.search(tenant, self.embedder.embed([query], "query")[0], k)
             if any(m.label.tenant != tenant for m in results):
                 raise RuntimeError("store returned another tenant's memory")
             ctx = render(results, secrets.token_hex(8), escaping=self.config.read_escaping)

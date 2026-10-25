@@ -8,7 +8,7 @@ class HashEmbedder:
     def __init__(self, dim: int = 256):
         self.dim = dim
 
-    def embed(self, texts: list[str]) -> list[list[float]]:
+    def embed(self, texts: list[str], input_type: str = "passage") -> list[list[float]]:
         out = []
         for text in texts:
             vec = [0.0] * self.dim

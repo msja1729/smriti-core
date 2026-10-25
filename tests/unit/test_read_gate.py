@@ -87,6 +87,15 @@ def test_tc04_canary_never_crosses_tenants():
     assert "CANARY-7731" not in ctx.instructions + ctx.data_block
 
 
+def test_embed_input_types():
+    store = FakeStore()
+    emb = FakeEmbedder()
+    gw = Gateway(store, emb, FakePii(), FakeJudge(), FakeSummarizer())
+    gw.write("Invoices go out on the 1st.", "user", "acme", "s1")
+    gw.read("invoices", "acme")
+    assert emb.input_types == ["passage", "query"]
+
+
 def test_read_is_ledgered():
     gw, store = make()
     w = gw.write("Invoices go out on the 1st.", "user", "acme", "s1")
