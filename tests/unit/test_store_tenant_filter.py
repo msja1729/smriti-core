@@ -6,7 +6,7 @@ from pathlib import Path
 
 import smriti.store.store as store_module
 
-TENANT_DATA = re.compile(r"\b(FROM|JOIN|UPDATE)\s+(memories|ledger|edges)\b", re.I)
+TENANT_DATA = re.compile(r"\b(FROM|JOIN|UPDATE)\s+(memories|ledger|edges|turns)\b", re.I)
 TENANT_FILTER = re.compile(r"\btenant\s*=\s*%\(tenant\)s")
 LEDGER_MUTATION = re.compile(r"\b(UPDATE\s+ledger|DELETE\s+FROM\s+ledger)\b", re.I)
 

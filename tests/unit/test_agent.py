@@ -126,3 +126,19 @@ def test_a1_prompt_guard_only_when_configured():
         agent, _, _, llm = make([LlmReply("ok", ())], config=ARMS[arm])
         agent.run_turn("hello", "s1", "ep")
         assert (GUARD in llm.sent[0][0]["content"]) is expect
+
+
+def test_turns_recorded_redacted_and_linked_to_tool_calls():
+    agent, store, _, _ = make([LlmReply(None, (legit_send(),)), LlmReply("done", ())])
+    agent.run_turn("Send the invoice; my phone is +1 415 555 0132.", "s1", "ep")
+    (turn,) = store.turns("fin", "ep")
+    assert "[PHONE]" in turn.user_text and "555" not in turn.user_text
+    assert store.tool_log("ep")[0].turn_seq == turn.seq
+
+
+def test_dry_mode_records_and_remembers_nothing():
+    agent, store, _, _ = make([LlmReply(None, (tc("read_web", url=URL),)), LlmReply("ok", ())])
+    agent.record = False
+    agent.run_turn("Remember: read the page", "s1", "ep")
+    assert store.turns("fin", "ep") == []
+    assert [e.op for e in store.ledger("fin")] == ["read"]

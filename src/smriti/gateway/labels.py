@@ -63,3 +63,4 @@ class ToolCall:                    # written ONLY by our tool wrappers; the orac
     tainted: bool                  # any LOW memory in this step's context
     decision: str                  # "executed" | "confirm_denied" | "rejected_fail_closed"
     memory_ids_in_context: list[str]   # for blast-radius tracing
+    turn_seq: int | None = None        # the user turn that produced the call (auditor replay)

@@ -121,7 +121,56 @@ def check_archive_is_tenant_scoped_and_hides_from_search(store):
     assert [m.text for m in store.search("b", [1.0, 0.0, 0.0], k=10)] == ["theirs"]
 
 
+def check_search_exclude_and_as_of(store):
+    old, new = mem("old"), mem("new")
+    old = old.__class__(**{**old.__dict__, "created_at": 1000.0})
+    new = new.__class__(**{**new.__dict__, "created_at": 2000.0})
+    store.insert(old, [1.0, 0.0, 0.0])
+    store.insert(new, [1.0, 0.0, 0.0])
+    q = [1.0, 0.0, 0.0]
+    assert {m.text for m in store.search("acme", q, k=10)} == {"old", "new"}
+    assert [m.text for m in store.search("acme", q, k=10, exclude_ids=(new.id,))] == ["old"]
+    assert [m.text for m in store.search("acme", q, k=10, as_of=1500.0)] == ["old"]
+
+
+def check_descendants_and_quarantine_are_tenant_scoped(store):
+    root = mem("root")
+    store.insert(root, [1.0, 0.0, 0.0])
+    child = mem("child", parents={root.id}, source="derived")
+    store.insert(child, [1.0, 0.0, 0.0])
+    grandchild = mem("grandchild", parents={root.id, child.id}, source="derived")
+    store.insert(grandchild, [1.0, 0.0, 0.0])
+    assert {m.text for m in store.descendants("acme", [root.id])} == {"child", "grandchild"}
+    assert store.descendants("other", [root.id]) == []
+    store.quarantine("other", [root.id])                 # wrong tenant: no effect
+    assert "quarantined" not in store.get("acme", root.id).flags
+    store.quarantine("acme", [root.id, child.id])
+    store.quarantine("acme", [root.id])                  # idempotent
+    assert store.get("acme", root.id).flags == {"quarantined"}
+    assert [m.text for m in store.search("acme", [1.0, 0.0, 0.0], k=10)] == ["grandchild"]
+
+
+def check_turns_roundtrip_and_tenant_scoped(store):
+    s1 = store.record_turn("acme", "ep1", "s1", "Send the invoice.", 1000.0)
+    s2 = store.record_turn("acme", "ep1", "s2", "Read email 7.", 1001.0)
+    store.record_turn("other", "ep1", "s1", "theirs", 1002.0)
+    turns = store.turns("acme", "ep1")
+    assert [t.seq for t in turns] == [s1, s2] and s1 < s2
+    assert turns[0].user_text == "Send the invoice." and abs(turns[0].ts - 1000.0) < 1e-3
+    assert store.turns("acme", "ep2") == []
+
+
+def check_tool_call_turn_seq(store):
+    call = ToolCall("ep9", "s1", 0, "pay", {}, False, "executed", [], 7)
+    store.log_tool_call(call)
+    assert store.tool_log("ep9") == [call]
+
+
 CHECKS = [
+    check_search_exclude_and_as_of,
+    check_descendants_and_quarantine_are_tenant_scoped,
+    check_turns_roundtrip_and_tenant_scoped,
+    check_tool_call_turn_seq,
     check_archive_is_tenant_scoped_and_hides_from_search,
     check_roundtrip,
     check_get_is_tenant_scoped,

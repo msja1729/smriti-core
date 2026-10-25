@@ -87,11 +87,12 @@ class ToolRunner:
         return [SCHEMAS[t] for t in self.tools]
 
     def run(self, name: str, args: dict, ctx: RenderedContext, *,
-            episode_id: str, session_id: str, step: int) -> ToolOutcome:
+            episode_id: str, session_id: str, step: int,
+            turn_seq: int | None = None) -> ToolOutcome:
         def log(decision: str, logged_args: dict) -> None:
             self.gateway.store.log_tool_call(ToolCall(
                 episode_id, session_id, step, name, logged_args, bool(ctx.tainted), decision,
-                list(ctx.memory_ids)))
+                list(ctx.memory_ids), turn_seq))
 
         if name not in self.tools:
             log("rejected_fail_closed", dict(args))

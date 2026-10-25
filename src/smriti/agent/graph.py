@@ -1,6 +1,7 @@
 """Agent loop per user turn (SPEC §10): retrieve -> think -> act -> ... -> remember."""
 import json
 import re
+import time
 from dataclasses import dataclass, replace
 from typing import TypedDict
 
@@ -20,6 +21,7 @@ class TurnState(TypedDict, total=False):
     user_text: str
     session_id: str
     episode_id: str
+    turn_seq: int | None
     ctx: RenderedContext
     messages: list[dict]
     pending: tuple[LlmToolCall, ...]
@@ -37,7 +39,7 @@ class TurnResult:
 
 class Agent:
     def __init__(self, gateway: Gateway, llm: ChatModel, tools: ToolRunner, role: str,
-                 tenant: str, k: int = 8, max_steps: int = 6):
+                 tenant: str, k: int = 8, max_steps: int = 6, record: bool = True):
         self.gateway = gateway
         self.llm = llm
         self.tools = tools
@@ -45,14 +47,27 @@ class Agent:
         self.tenant = tenant
         self.k = k
         self.max_steps = max_steps
+        # record=False is the auditor's dry replay: no turn log, nothing remembered.
+        self.record = record
         self._graph = self._build()
 
     def run_turn(self, user_text: str, session_id: str, episode_id: str) -> TurnResult:
+        turn_seq = self._record_turn(user_text, session_id, episode_id) if self.record else None
         out = self._graph.invoke(
             {"user_text": user_text, "session_id": session_id, "episode_id": episode_id,
-             "step": 0, "low_read": False, "reads": [], "final": ""},
+             "turn_seq": turn_seq, "step": 0, "low_read": False, "reads": [], "final": ""},
             config={"recursion_limit": 2 * self.max_steps + 10})
         return TurnResult(out["final"], out["step"])
+
+    def _record_turn(self, user_text: str, session_id: str, episode_id: str) -> int | None:
+        """Log the request (PII-redacted) so the Immune Auditor can replay it later.
+        Best effort: a logging failure must never block the user's turn."""
+        try:
+            text = self.gateway.pii.redact(user_text).text
+            return self.gateway.store.record_turn(self.tenant, episode_id, session_id, text,
+                                                  time.time())
+        except Exception:
+            return None
 
     def _build(self):
         g = StateGraph(TurnState)
@@ -95,7 +110,8 @@ class Agent:
         for call in s["pending"]:
             ctx = replace(s["ctx"], tainted=s["ctx"].tainted or low_read)
             out = self.tools.run(call.name, call.args, ctx, episode_id=s["episode_id"],
-                                 session_id=s["session_id"], step=s["step"])
+                                 session_id=s["session_id"], step=s["step"],
+                                 turn_seq=s.get("turn_seq"))
             messages.append({"role": "tool", "tool_call_id": call.id, "content": out.text})
             source = READ_SOURCES.get(call.name)
             if source and out.decision == "executed":
@@ -105,6 +121,8 @@ class Agent:
                 "pending": (), "step": s["step"] + 1}
 
     def _remember(self, s: TurnState) -> dict:
+        if not self.record:
+            return {}
         for source, text in s["reads"]:
             self.gateway.write(text, source, self.tenant, s["session_id"])
         if _REMEMBER_REQUEST.match(s["user_text"]):

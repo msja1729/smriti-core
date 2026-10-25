@@ -27,10 +27,26 @@ class LedgerEntry:
     detail: dict
 
 
+@dataclass(frozen=True)
+class Turn:
+    seq: int
+    ts: float
+    tenant: str
+    episode_id: str
+    session_id: str
+    user_text: str                 # PII-redacted
+
+
 class Store(Protocol):
     def insert(self, memory: Memory, embedding: list[float] | None) -> None: ...
     def get(self, tenant: str, memory_id: str) -> Memory | None: ...
-    def search(self, tenant: str, embedding: list[float], k: int) -> list[Memory]: ...
+    def search(self, tenant: str, embedding: list[float], k: int,
+               exclude_ids: tuple[str, ...] = (), as_of: float | None = None) -> list[Memory]: ...
+    def descendants(self, tenant: str, memory_ids: list[str]) -> list[Memory]: ...
+    def quarantine(self, tenant: str, memory_ids: list[str]) -> None: ...
+    def record_turn(self, tenant: str, episode_id: str, session_id: str, user_text: str,
+                    ts: float) -> int: ...
+    def turns(self, tenant: str, episode_id: str) -> list[Turn]: ...
     def archive(self, tenant: str, memory_ids: list[str]) -> None: ...
     def append_ledger(self, tenant: str, op: str, memory_id: str | None, detail: dict) -> None: ...
     def ledger(self, tenant: str) -> list[LedgerEntry]: ...
@@ -62,6 +78,9 @@ FROM memories m
 WHERE m.tenant = %(tenant)s
   AND m.embedding IS NOT NULL
   AND NOT (m.flags && ARRAY['quarantined', 'archived'])
+  AND NOT (m.id = ANY(%(exclude)s::uuid[]))
+  AND (%(as_of)s::double precision IS NULL
+       OR m.created_at <= to_timestamp(%(as_of)s::double precision))
 ORDER BY m.embedding <=> %(query)s::vector
 LIMIT %(k)s"""
 
@@ -69,6 +88,25 @@ LIMIT %(k)s"""
 ARCHIVE = """UPDATE memories SET flags = array_append(flags, 'archived')
 WHERE tenant = %(tenant)s AND id = ANY(%(ids)s::uuid[])
   AND NOT ('archived' = ANY(flags))"""
+
+DESCENDANTS = f"""SELECT {_MEMORY_COLUMNS}
+FROM memories m
+WHERE m.tenant = %(tenant)s
+  AND m.id IN (SELECT e.child FROM edges e WHERE e.parent = ANY(%(ids)s::uuid[]))"""
+
+# Rollback by the Immune Auditor: the memory stays for audit but is never retrieved again.
+QUARANTINE = """UPDATE memories SET flags = array_append(flags, 'quarantined')
+WHERE tenant = %(tenant)s AND id = ANY(%(ids)s::uuid[])
+  AND NOT ('quarantined' = ANY(flags))"""
+
+RECORD_TURN = """INSERT INTO turns (ts, tenant, episode_id, session_id, user_text)
+VALUES (to_timestamp(%(ts)s), %(tenant)s, %(episode_id)s, %(session_id)s, %(user_text)s)
+RETURNING seq"""
+
+READ_TURNS = """SELECT seq, extract(epoch FROM ts), tenant, episode_id, session_id, user_text
+FROM turns
+WHERE tenant = %(tenant)s AND episode_id = %(episode_id)s
+ORDER BY seq"""
 
 APPEND_LEDGER = """INSERT INTO ledger (tenant, op, memory_id, detail)
 VALUES (%(tenant)s, %(op)s, %(memory_id)s, %(detail)s)"""
@@ -79,17 +117,18 @@ WHERE tenant = %(tenant)s
 ORDER BY seq"""
 
 INSERT_TOOL_CALL = """INSERT INTO tool_log
-  (episode_id, session_id, step, tool, args, tainted, decision, memory_ids_in_context)
+  (episode_id, session_id, step, tool, args, tainted, decision, memory_ids_in_context,
+   turn_seq)
 VALUES (%(episode_id)s, %(session_id)s, %(step)s, %(tool)s, %(args)s, %(tainted)s,
-        %(decision)s, %(memory_ids)s::uuid[])"""
+        %(decision)s, %(memory_ids)s::uuid[], %(turn_seq)s)"""
 
 READ_TOOL_LOG = """SELECT episode_id, session_id, step, tool, args, tainted, decision,
-       memory_ids_in_context::text[]
+       memory_ids_in_context::text[], turn_seq
 FROM tool_log
 WHERE episode_id = %(episode_id)s
 ORDER BY seq"""
 
-RESET = "TRUNCATE memories, edges, ledger, tool_log RESTART IDENTITY CASCADE"
+RESET = "TRUNCATE memories, edges, ledger, tool_log, turns RESTART IDENTITY CASCADE"
 
 
 def _vector(embedding: list[float] | None) -> str | None:
@@ -155,10 +194,32 @@ class PgStore:
         row = self._conn.execute(GET_MEMORY, {"tenant": tenant, "id": memory_id}).fetchone()
         return _row_to_memory(row) if row else None
 
-    def search(self, tenant: str, embedding: list[float], k: int) -> list[Memory]:
-        rows = self._conn.execute(
-            SEARCH, {"tenant": tenant, "query": _vector(embedding), "k": k}).fetchall()
+    def search(self, tenant: str, embedding: list[float], k: int,
+               exclude_ids: tuple[str, ...] = (), as_of: float | None = None) -> list[Memory]:
+        rows = self._conn.execute(SEARCH, {
+            "tenant": tenant, "query": _vector(embedding), "k": k,
+            "exclude": list(exclude_ids), "as_of": as_of}).fetchall()
         return [_row_to_memory(r) for r in rows]
+
+    def descendants(self, tenant: str, memory_ids: list[str]) -> list[Memory]:
+        rows = self._conn.execute(
+            DESCENDANTS, {"tenant": tenant, "ids": list(memory_ids)}).fetchall()
+        return [_row_to_memory(r) for r in rows]
+
+    def quarantine(self, tenant: str, memory_ids: list[str]) -> None:
+        self._conn.execute(QUARANTINE, {"tenant": tenant, "ids": list(memory_ids)})
+
+    def record_turn(self, tenant: str, episode_id: str, session_id: str, user_text: str,
+                    ts: float) -> int:
+        (seq,) = self._conn.execute(RECORD_TURN, {
+            "ts": ts, "tenant": tenant, "episode_id": episode_id, "session_id": session_id,
+            "user_text": user_text}).fetchone()
+        return seq
+
+    def turns(self, tenant: str, episode_id: str) -> list[Turn]:
+        rows = self._conn.execute(
+            READ_TURNS, {"tenant": tenant, "episode_id": episode_id}).fetchall()
+        return [Turn(seq, float(ts), t, ep, sess, text) for seq, ts, t, ep, sess, text in rows]
 
     def archive(self, tenant: str, memory_ids: list[str]) -> None:
         self._conn.execute(ARCHIVE, {"tenant": tenant, "ids": list(memory_ids)})
@@ -177,11 +238,12 @@ class PgStore:
             "episode_id": call.episode_id, "session_id": call.session_id, "step": call.step,
             "tool": call.tool, "args": Jsonb(call.args), "tainted": call.tainted,
             "decision": call.decision, "memory_ids": list(call.memory_ids_in_context),
+            "turn_seq": call.turn_seq,
         })
 
     def tool_log(self, episode_id: str) -> list[ToolCall]:
         rows = self._conn.execute(READ_TOOL_LOG, {"episode_id": episode_id}).fetchall()
-        return [ToolCall(*row[:7], list(row[7])) for row in rows]
+        return [ToolCall(*row[:7], list(row[7]), row[8]) for row in rows]
 
     def reset(self) -> None:
         self._conn.execute(RESET)

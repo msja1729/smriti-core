@@ -34,5 +34,16 @@ CREATE TABLE IF NOT EXISTS tool_log (
   seq        BIGSERIAL PRIMARY KEY,
   episode_id TEXT, session_id TEXT, step INT,
   tool TEXT, args JSONB, tainted BOOLEAN, decision TEXT,
-  memory_ids_in_context UUID[]
+  memory_ids_in_context UUID[],
+  turn_seq   BIGINT                     -- the user turn that produced this call
 );
+
+CREATE TABLE IF NOT EXISTS turns (     -- user requests, PII-redacted; the auditor replays them
+  seq        BIGSERIAL PRIMARY KEY,
+  ts         TIMESTAMPTZ NOT NULL,
+  tenant     TEXT NOT NULL,
+  episode_id TEXT NOT NULL,
+  session_id TEXT NOT NULL,
+  user_text  TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS turns_tenant_idx ON turns (tenant);
