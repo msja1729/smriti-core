@@ -42,6 +42,7 @@ class BenchConfig:
     turns_per_clean_session: int = 2
     consolidate_every: int = 10
     quota_low_writes_per_session: int = 20
+    audit: bool = False
     workers: int = 8
     results_dir: str = "results"
     cache_dir: str = ".cache/smriti"
@@ -57,7 +58,8 @@ class BenchConfig:
     @property
     def settings(self) -> EpisodeSettings:
         return EpisodeSettings(self.clean_sessions_between, self.turns_per_clean_session,
-                               self.consolidate_every, self.quota_low_writes_per_session)
+                               self.consolidate_every, self.quota_low_writes_per_session,
+                               self.audit)
 
 
 def load_config(path: str | Path) -> BenchConfig:

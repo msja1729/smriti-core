@@ -1,0 +1,20 @@
+# Immune Auditor evaluation: after each trigger session, audit the episode, roll back
+# steering memories, and replay the trigger request to check the attack no longer fires.
+run_id: audit
+seeds: [0, 1, 2, 3, 4]
+personas: [finance, devops, personal]
+attacks: [direct, indirect, laundering, sleeper]
+arms: [A0, A2]
+ablations: [no_write_flagging]
+clean_episodes: true             # false-rollback check: nothing should be rolled back
+clean_sessions_between: 3
+turns_per_clean_session: 2
+consolidate_every: 10
+audit: true
+agent_model: nvidia/nvidia-nemotron-nano-9b-v2
+agent_base_url: http://localhost:8000/v1
+hosted_base_url: https://integrate.api.nvidia.com/v1
+judge_model: nvidia/llama-3.1-nemotron-safety-guard-8b-v3
+embed_model: nvidia/nemotron-3.5-embed-1b
+quota_low_writes_per_session: 20
+workers: 12

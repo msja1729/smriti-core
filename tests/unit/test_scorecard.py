@@ -46,3 +46,11 @@ def test_charts_written(run_dir):
     assert {p.name for p in paths} == {"asr_by_arm_class.png", "utility_by_arm.png",
                                        "ablations.png"}
     assert all(p.stat().st_size > 10_000 for p in paths)
+
+
+def test_render_audit_section(tmp_path):
+    cfg = BenchConfig(**{**CFG, "audit": True})
+    run(cfg, parts(), FakeStore, out_dir=tmp_path, log=lambda *_: None)
+    metrics, results = load(tmp_path)
+    md = render(metrics, results, "t")
+    assert "## Immune Auditor" in md and "Poison caught" in md

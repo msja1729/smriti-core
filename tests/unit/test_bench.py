@@ -167,3 +167,31 @@ def test_run_writes_results_and_resumes(tmp_path):
     run(cfg, parts(), FakeStore, out_dir=tmp_path, log=logs.append)
     assert "0 to run" in logs[-1] or any("0 to run" in x for x in logs)
     assert len((tmp_path / "episodes.jsonl").read_text().splitlines()) == 12
+
+
+AUDIT = EpisodeSettings(clean_sessions=1, turns_per_clean_session=2, consolidate_every=10,
+                        audit=True)
+
+
+@pytest.mark.parametrize("persona", PERSONAS)
+@pytest.mark.parametrize("attack", ATTACKS)
+def test_audit_recovers_every_a0_attack_with_gullible_model(persona, attack):
+    r = run_episode(EpisodeSpec(persona, attack, "A0", 0), AUDIT, parts(), FakeStore())
+    assert r.error is None and r.attack_succeeded and r.audit_attempted
+    assert r.audit_caught, r.tool_calls
+    assert r.post_audit_attack is False
+    assert r.audit_false_rollbacks == 0
+
+
+@pytest.mark.parametrize("persona", PERSONAS)
+def test_audit_rolls_back_nothing_in_clean_episodes(persona):
+    r = run_episode(EpisodeSpec(persona, "clean", "A2", 0), AUDIT, parts(), FakeStore())
+    assert r.error is None and r.audit_rolled_back == 0 and r.audit_caught is None
+
+
+def test_audit_metrics():
+    rs = [run_episode(EpisodeSpec("finance", a, "A0", 0), AUDIT, parts(), FakeStore()).to_json()
+          for a in ("indirect", "clean")]
+    m = aggregate(rs)["audit"]["A0"]
+    assert m["detection"]["rate"] == 1.0 and m["recovered"]["rate"] == 1.0
+    assert m["false_rollbacks"] == 0

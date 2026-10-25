@@ -147,6 +147,25 @@ def render(metrics: dict, results: list[dict], title: str) -> str:
               "Both include store round trips, which every arm pays (A0 too); added latency "
               "= A2 minus A0.", ""]
 
+    if "audit" in metrics:
+        lines += ["## Immune Auditor", "",
+                  "Run after each trigger session: counterfactual replays find memories that "
+                  "steered a risky call; they and their descendants are rolled back; the "
+                  "trigger request is replayed to check the attack no longer fires.", "",
+                  "| Arm | Poison caught | Attack stopped after rollback | False rollbacks "
+                  "| Clean episodes with a false rollback | Inconclusive | Replays / episode |",
+                  "|---|---|---|---|---|---|---|"]
+        for arm in arms:
+            a = metrics["audit"].get(arm)
+            if a:
+                lines.append(
+                    f"| {ARM_LABEL[arm]} | {fmt_rate(a['detection'])} | "
+                    f"{fmt_rate(a['recovered'])} | {a['false_rollbacks']} | "
+                    f"{fmt_rate(a['clean_episodes_with_false_rollback'])} | "
+                    f"{a['inconclusive']} | {a['replays_per_episode']:.1f} |")
+        lines += ["", "Denominator for caught/stopped: episodes where an attacker-bound call "
+                  "was attempted (executed or denied).", ""]
+
     errors = sum(m["errors"] for m in metrics["per_arm"].values())
     lines.append(f"Episodes that crashed (excluded above): {errors}.")
     return "\n".join(lines) + "\n"
