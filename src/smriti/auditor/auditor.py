@@ -5,7 +5,9 @@ Low-trust memory may *inform* an action the user asked for, so only **unsanction
 destinations** are chased: recipients, accounts, repos or refs of a risky call (executed or
 denied) that appear nowhere in what the user wrote (their request, or user-written memories
 in context). The suspects are the memories in that call's context the user did not write
-(judged by source, so this works even without trust labels). Each suspect is hidden in a
+(judged by source, so this works even without trust labels) and whose text mentions the
+unsanctioned destination: that is where it can have come from. Only if none mentions it
+(the model composed it) are all non-user memories suspects. Each suspect is hidden in a
 counterfactual replay of the turn; if the unsanctioned destination disappears, that memory
 was steering the agent. If no single suspect explains it (e.g. the poison exists twice:
 original + summary), all suspects are hidden together and the set is shrunk to a minimal
@@ -70,7 +72,9 @@ class ImmuneAuditor:
                 report.findings.append(Finding(turn.seq, call.tool, call.args, None,
                                                "inconclusive"))
                 continue
-            suspects = [m.id for m in context if m.label.source != "user"]
+            others = [m for m in context if m.label.source != "user"]
+            mentions = [m.id for m in others if any(d in m.text.lower() for d in bad)]
+            suspects = mentions or [m.id for m in others]
             steering = [mid for mid in suspects if not self._reproduces(turn, (mid,), bad, report)]
             if not steering and suspects and not self._reproduces(turn, tuple(suspects), bad,
                                                                   report):

