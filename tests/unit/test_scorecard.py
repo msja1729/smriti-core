@@ -29,7 +29,7 @@ def test_render_has_targets_and_tables(run_dir):
     assert "A2 against the targets" in md and "Wilson" in md
     assert "A2 SMRITI" in md and "A2 - write flagging (detector off)" in md
     names = [t[0] for t in targets(metrics)]
-    assert "Attack success rate" in names and "Gateway own overhead, p95" in names
+    assert "Attack success rate" in names and "Added latency vs A0, p95 (own)" in names
 
 
 def test_stop_breakdown_counts_every_attack_episode(run_dir):

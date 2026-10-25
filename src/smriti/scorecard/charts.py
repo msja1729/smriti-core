@@ -102,22 +102,26 @@ def utility_by_arm(metrics: dict, out: Path) -> Path:
     return _save(fig, out / "utility_by_arm.png")
 
 
+ABLATION_LABEL = {"A2": "A2\nall layers", "no_write_flagging": "minus\ndetector",
+                  "no_read_escaping": "minus\nescaping", "no_action_check": "minus\naction check",
+                  "no_provenance": "minus\nprovenance"}
+
+
 def ablations(metrics: dict, out: Path) -> Path | None:
-    arms = [a for a in ("A2", "no_write_flagging", "no_read_escaping", "no_action_check",
-                        "no_provenance") if a in metrics["asr"]]
+    arms = [a for a in ABLATION_LABEL if a in metrics["asr"]]
     if len(arms) < 2:
         return None
-    labels = ["A2 (all layers)" if a == "A2" else ARM_LABEL[a].replace("A2 - ", "minus ")
-              for a in arms]
     fig, axes = plt.subplots(1, 2, figsize=(11, 4.2), sharey=True)
     _bars(axes[0], range(len(arms)), [metrics["asr"][a]["all"] for a in arms], 0.6, SEQ)
     axes[0].set_title("Attack success (lower is better)")
+    # Clean utility is 100% everywhere; under attack is where the layers differ.
     _bars(axes[1], range(len(arms)),
-          [metrics["per_arm"][a]["utility_clean"] for a in arms], 0.6, SEQ)
-    axes[1].set_title("Clean utility (higher is better)")
+          [metrics["per_arm"][a]["utility_under_attack"] for a in arms], 0.6, SEQ)
+    axes[1].set_title("Utility under attack (higher is better)")
     for ax in axes:
-        ax.set_xticks(range(len(arms)), labels, rotation=20, ha="right")
+        ax.set_xticks(range(len(arms)), [ABLATION_LABEL[a] for a in arms])
         _axes(ax, "%")
+    axes[1].set_ylabel("")
     fig.suptitle("Ablations: SMRITI with one layer removed", x=0.01, ha="left",
                  fontweight="bold")
     return _save(fig, out / "ablations.png")
