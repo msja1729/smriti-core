@@ -8,3 +8,4 @@ data/raw/
 *.safetensors
 .ipynb_checkpoints/
 .cache/
+lean/.lake/

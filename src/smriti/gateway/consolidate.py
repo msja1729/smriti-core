@@ -1,5 +1,6 @@
 """Consolidation labels (SPEC §9.2). The label is computed here, never by the LLM.
-Mirrors lean/Smriti/Label.lean `summary_inherits`."""
+Mirrors lean/Smriti/Label.lean `summarize`; proved there: `summary_inherits` and
+`summary_low_of_low_input` (any LOW input makes the summary LOW)."""
 from functools import reduce
 from typing import Protocol
 
