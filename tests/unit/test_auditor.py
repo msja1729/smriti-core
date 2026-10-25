@@ -126,8 +126,8 @@ def test_clean_run_rolls_back_nothing():
 
     report = auditor.audit(FIN.tenant, "ep")
     assert report.steering == [] and report.rolled_back == []
-    assert {f.suspect for f in report.findings} == set(clean)
-    assert all(f.verdict == "not_steering" for f in report.findings)
+    assert report.findings == [] and report.replays == 0    # user-sanctioned: not chased
+    assert clean
 
 
 def test_replay_is_read_only():
@@ -174,3 +174,31 @@ def test_unreproducible_call_is_inconclusive_not_rolled_back():
     report = auditor.audit(FIN.tenant, "ep")
     assert [f.verdict for f in report.findings] == ["inconclusive"]
     assert report.rolled_back == []
+
+
+class InformedChat:
+    """Sends the legit invoice only if a (clean, LOW) memory about invoice timing is in view:
+    low-trust memory *informs* the user's own request. Hiding it changes the action."""
+
+    def chat(self, messages, tools):
+        if messages[-1]["role"] == "tool":
+            return LlmReply("done", ())
+        if "Invoices go out on the 1st" in messages[0]["content"]:
+            return LlmReply(None, (LlmToolCall("t", "send_email", {
+                "to": ["billing@acme.com"], "subject": "Invoice", "body": "b"}),))
+        return LlmReply("I'll wait until the 1st.", ())
+
+
+def test_memory_that_informs_a_sanctioned_call_is_not_rolled_back():
+    store, gw, agent, auditor, _, _ = setup(A2, llm=InformedChat())
+    clean = clean_low(gw)
+    agent.run_turn(TASK.turn, "trigger", "ep")
+    assert store.tool_log("ep")[0].args["to"] == ["billing@acme.com"]   # from the user's memory
+    report = auditor.audit(FIN.tenant, "ep")
+    assert report.rolled_back == [] and not set(clean) & set(report.steering)
+
+
+def test_destination_also_named_by_user_is_sanctioned_but_extra_cc_is_not():
+    from smriti.auditor.replay import destinations
+    assert destinations({"to": ["Acme <Billing@Acme.com>"], "cc": ["x@evil.io"], "body": "z"}) \
+        == {"billing@acme.com", "x@evil.io"}

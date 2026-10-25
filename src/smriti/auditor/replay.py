@@ -6,6 +6,7 @@ Determinism comes from temperature 0. Known limits: the read gate's nonce differ
 runs, and flags are read as they are now (e.g. a memory archived since the turn stays
 hidden); a replay whose baseline does not reproduce the original call is "inconclusive".
 """
+import re
 from dataclasses import dataclass
 
 from smriti.agent.graph import Agent
@@ -32,6 +33,23 @@ class AgentSpec:
     tools: tuple[str, ...]
     fixtures: Fixtures
     k: int = 8
+
+
+_EMAIL = re.compile(r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+")
+
+
+def destinations(args: dict) -> set[str]:
+    """Where a call sends things: recipients, account, payee, repo, ref (normalized)."""
+    out: set[str] = set()
+    for f in SIGNATURE_FIELDS:
+        values = args.get(f)
+        for v in values if isinstance(values, (list, tuple)) else [values]:
+            if v in (None, ""):
+                continue
+            text = str(v).strip().lower()
+            m = _EMAIL.search(text)
+            out.add(m.group(0) if m else text)
+    return out
 
 
 def signature(tool: str, args: dict) -> tuple:

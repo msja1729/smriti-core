@@ -1,17 +1,19 @@
 """Immune Auditor: find memories that steered risky actions, roll them back, and list the
 actions they touched.
 
-For every risky tool call (executed or denied) the suspects are the memories in its
-context that the user did not write (judged by source, so this works even without trust
-labels). Each suspect is hidden in a counterfactual replay of the turn; if the risky call
-disappears or changes destination, that memory was steering the agent. If no single
-suspect explains the call (e.g. the poison exists twice: original + summary), all suspects
-are hidden together and the set is shrunk to a minimal one that still explains it. The
-decision is made by comparing call signatures in code, never by an LLM.
+Low-trust memory may *inform* an action the user asked for, so only **unsanctioned
+destinations** are chased: recipients, accounts, repos or refs of a risky call (executed or
+denied) that appear nowhere in what the user wrote (their request, or user-written memories
+in context). The suspects are the memories in that call's context the user did not write
+(judged by source, so this works even without trust labels). Each suspect is hidden in a
+counterfactual replay of the turn; if the unsanctioned destination disappears, that memory
+was steering the agent. If no single suspect explains it (e.g. the poison exists twice:
+original + summary), all suspects are hidden together and the set is shrunk to a minimal
+one. Every decision is made by comparing destinations in code, never by an LLM.
 """
 from dataclasses import dataclass, field
 
-from smriti.auditor.replay import AgentSpec, Attempt, replay_turn, signature
+from smriti.auditor.replay import AgentSpec, Attempt, destinations, replay_turn
 from smriti.gateway.gateway import Gateway
 from smriti.gateway.labels import ToolCall
 from smriti.models.nim import ChatModel
@@ -57,19 +59,22 @@ class ImmuneAuditor:
 
         for call in calls:
             turn = turns[call.turn_seq]
-            sig = signature(call.tool, call.args)
-            baseline = self._replay(turn, (), report)
-            if sig not in {signature(a.tool, a.args) for a in baseline}:
+            context = [m for mid in call.memory_ids_in_context
+                       if (m := store.get(tenant, mid)) is not None]
+            user_text = " ".join([turn.user_text, *(m.text for m in context
+                                                    if m.label.source == "user")]).lower()
+            bad = frozenset(d for d in destinations(call.args) if d not in user_text)
+            if not bad:
+                continue                       # user-sanctioned: memory only informed it
+            if not self._reproduces(turn, (), bad, report):
                 report.findings.append(Finding(turn.seq, call.tool, call.args, None,
                                                "inconclusive"))
                 continue
-            suspects = [mid for mid in call.memory_ids_in_context
-                        if (m := store.get(tenant, mid)) is not None
-                        and m.label.source != "user"]
-            steering = [mid for mid in suspects if not self._reproduces(turn, (mid,), sig, report)]
-            if not steering and suspects and not self._reproduces(turn, tuple(suspects), sig,
+            suspects = [m.id for m in context if m.label.source != "user"]
+            steering = [mid for mid in suspects if not self._reproduces(turn, (mid,), bad, report)]
+            if not steering and suspects and not self._reproduces(turn, tuple(suspects), bad,
                                                                   report):
-                steering = self._minimal_set(turn, suspects, sig, report)
+                steering = self._minimal_set(turn, suspects, bad, report)
             for mid in suspects:
                 report.findings.append(Finding(turn.seq, call.tool, call.args, mid,
                                                "steering" if mid in steering else "not_steering"))
@@ -95,18 +100,21 @@ class ImmuneAuditor:
                          and bad & set(c.memory_ids_in_context)]
         return report
 
-    def _reproduces(self, turn, exclude: tuple[str, ...], sig: tuple,
+    def _reproduces(self, turn, exclude: tuple[str, ...], bad: frozenset[str],
                     report: AuditReport) -> bool:
-        return sig in {signature(a.tool, a.args) for a in self._replay(turn, exclude, report)}
+        """Does any attempted risky call still go to one of the unsanctioned destinations?"""
+        risky = self.gateway.config.risky_tools
+        return any(bad & destinations(a.args) for a in self._replay(turn, exclude, report)
+                   if a.tool in risky)
 
-    def _minimal_set(self, turn, suspects: list[str], sig: tuple,
+    def _minimal_set(self, turn, suspects: list[str], bad: frozenset[str],
                      report: AuditReport) -> list[str]:
         """Hiding all suspects removes the call; put each back in turn and keep it hidden only
         if putting it back brings the call back."""
         hidden = list(suspects)
         for mid in suspects:
             trial = tuple(x for x in hidden if x != mid)
-            if not self._reproduces(turn, trial, sig, report):
+            if not self._reproduces(turn, trial, bad, report):
                 hidden = list(trial)        # not needed to explain the call
         return hidden
 
