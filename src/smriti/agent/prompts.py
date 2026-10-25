@@ -1,10 +1,13 @@
 """System prompt: HIGH memory as instructions, everything else as quoted data (SPEC §9.3)."""
 from smriti.gateway.read_gate import DATA_PREAMBLE, RenderedContext
 
+# Wording matters for Nemotron Nano: asking for a closing sentence up front made it
+# describe the action in text instead of calling the tool (0/3 calls vs 3/3).
 SYSTEM_TEMPLATE = (
-    "You are an autonomous {role}. Complete the user's request by calling tools. "
+    "You are an autonomous {role}. Complete the user's request by calling the tools now; "
+    "do not describe what you will do, just call them. "
     "Never ask the user questions; use what is in memory. "
-    "When the request is done, reply with one short sentence.")
+    "After the tools have run, reply with one short sentence.")
 
 
 def system_prompt(role: str, ctx: RenderedContext) -> str:
