@@ -44,6 +44,7 @@ CREATE TABLE IF NOT EXISTS turns (     -- user requests, PII-redacted; the audit
   tenant     TEXT NOT NULL,
   episode_id TEXT NOT NULL,
   session_id TEXT NOT NULL,
-  user_text  TEXT NOT NULL
+  user_text  TEXT NOT NULL,
+  nonce      TEXT                       -- read-gate nonce used, so a replay's prompt matches
 );
 CREATE INDEX IF NOT EXISTS turns_tenant_idx ON turns (tenant);

@@ -35,6 +35,7 @@ class Turn:
     episode_id: str
     session_id: str
     user_text: str                 # PII-redacted
+    nonce: str | None = None       # read-gate nonce of the original turn (exact replay)
 
 
 class Store(Protocol):
@@ -45,7 +46,7 @@ class Store(Protocol):
     def descendants(self, tenant: str, memory_ids: list[str]) -> list[Memory]: ...
     def quarantine(self, tenant: str, memory_ids: list[str]) -> None: ...
     def record_turn(self, tenant: str, episode_id: str, session_id: str, user_text: str,
-                    ts: float) -> int: ...
+                    ts: float, nonce: str | None = None) -> int: ...
     def turns(self, tenant: str, episode_id: str) -> list[Turn]: ...
     def archive(self, tenant: str, memory_ids: list[str]) -> None: ...
     def append_ledger(self, tenant: str, op: str, memory_id: str | None, detail: dict) -> None: ...
@@ -99,11 +100,13 @@ QUARANTINE = """UPDATE memories SET flags = array_append(flags, 'quarantined')
 WHERE tenant = %(tenant)s AND id = ANY(%(ids)s::uuid[])
   AND NOT ('quarantined' = ANY(flags))"""
 
-RECORD_TURN = """INSERT INTO turns (ts, tenant, episode_id, session_id, user_text)
-VALUES (to_timestamp(%(ts)s), %(tenant)s, %(episode_id)s, %(session_id)s, %(user_text)s)
+RECORD_TURN = """INSERT INTO turns (ts, tenant, episode_id, session_id, user_text, nonce)
+VALUES (to_timestamp(%(ts)s), %(tenant)s, %(episode_id)s, %(session_id)s, %(user_text)s,
+        %(nonce)s)
 RETURNING seq"""
 
-READ_TURNS = """SELECT seq, extract(epoch FROM ts), tenant, episode_id, session_id, user_text
+READ_TURNS = """SELECT seq, extract(epoch FROM ts), tenant, episode_id, session_id, user_text,
+       nonce
 FROM turns
 WHERE tenant = %(tenant)s AND episode_id = %(episode_id)s
 ORDER BY seq"""
@@ -210,16 +213,17 @@ class PgStore:
         self._conn.execute(QUARANTINE, {"tenant": tenant, "ids": list(memory_ids)})
 
     def record_turn(self, tenant: str, episode_id: str, session_id: str, user_text: str,
-                    ts: float) -> int:
+                    ts: float, nonce: str | None = None) -> int:
         (seq,) = self._conn.execute(RECORD_TURN, {
             "ts": ts, "tenant": tenant, "episode_id": episode_id, "session_id": session_id,
-            "user_text": user_text}).fetchone()
+            "user_text": user_text, "nonce": nonce}).fetchone()
         return seq
 
     def turns(self, tenant: str, episode_id: str) -> list[Turn]:
         rows = self._conn.execute(
             READ_TURNS, {"tenant": tenant, "episode_id": episode_id}).fetchall()
-        return [Turn(seq, float(ts), t, ep, sess, text) for seq, ts, t, ep, sess, text in rows]
+        return [Turn(seq, float(ts), t, ep, sess, text, nonce)
+                for seq, ts, t, ep, sess, text, nonce in rows]
 
     def archive(self, tenant: str, memory_ids: list[str]) -> None:
         self._conn.execute(ARCHIVE, {"tenant": tenant, "ids": list(memory_ids)})

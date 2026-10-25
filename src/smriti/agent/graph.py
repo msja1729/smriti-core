@@ -1,6 +1,7 @@
 """Agent loop per user turn (SPEC §10): retrieve -> think -> act -> ... -> remember."""
 import json
 import re
+import secrets
 import time
 from dataclasses import dataclass, replace
 from typing import TypedDict
@@ -22,6 +23,7 @@ class TurnState(TypedDict, total=False):
     session_id: str
     episode_id: str
     turn_seq: int | None
+    nonce: str
     ctx: RenderedContext
     messages: list[dict]
     pending: tuple[LlmToolCall, ...]
@@ -51,21 +53,27 @@ class Agent:
         self.record = record
         self._graph = self._build()
 
-    def run_turn(self, user_text: str, session_id: str, episode_id: str) -> TurnResult:
-        turn_seq = self._record_turn(user_text, session_id, episode_id) if self.record else None
+    def run_turn(self, user_text: str, session_id: str, episode_id: str,
+                 nonce: str | None = None) -> TurnResult:
+        """`nonce` is only passed by the auditor's replay, to reproduce the original prompt."""
+        nonce = nonce or secrets.token_hex(8)
+        turn_seq = (self._record_turn(user_text, session_id, episode_id, nonce)
+                    if self.record else None)
         out = self._graph.invoke(
             {"user_text": user_text, "session_id": session_id, "episode_id": episode_id,
-             "turn_seq": turn_seq, "step": 0, "low_read": False, "reads": [], "final": ""},
+             "turn_seq": turn_seq, "nonce": nonce, "step": 0, "low_read": False, "reads": [],
+             "final": ""},
             config={"recursion_limit": 2 * self.max_steps + 10})
         return TurnResult(out["final"], out["step"])
 
-    def _record_turn(self, user_text: str, session_id: str, episode_id: str) -> int | None:
+    def _record_turn(self, user_text: str, session_id: str, episode_id: str,
+                     nonce: str) -> int | None:
         """Log the request (PII-redacted) so the Immune Auditor can replay it later.
         Best effort: a logging failure must never block the user's turn."""
         try:
             text = self.gateway.pii.redact(user_text).text
             return self.gateway.store.record_turn(self.tenant, episode_id, session_id, text,
-                                                  time.time())
+                                                  time.time(), nonce)
         except Exception:
             return None
 
@@ -83,7 +91,7 @@ class Agent:
         return g.compile()
 
     def _retrieve(self, s: TurnState) -> dict:
-        ctx = self.gateway.read(s["user_text"], self.tenant, self.k)
+        ctx = self.gateway.read(s["user_text"], self.tenant, self.k, nonce=s["nonce"])
         return {"ctx": ctx, "messages": [
             {"role": "system", "content": system_prompt(
                 self.role, ctx, guard=self.gateway.config.prompt_guard)},

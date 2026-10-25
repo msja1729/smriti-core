@@ -202,3 +202,26 @@ def test_destination_also_named_by_user_is_sanctioned_but_extra_cc_is_not():
     from smriti.auditor.replay import destinations
     assert destinations({"to": ["Acme <Billing@Acme.com>"], "cc": ["x@evil.io"], "body": "z"}) \
         == {"billing@acme.com", "x@evil.io"}
+
+
+class RecordingChat(GullibleChat):
+    def __init__(self, persona):
+        super().__init__(persona)
+        self.systems = []
+
+    def chat(self, messages, tools):
+        self.systems.append(messages[0]["content"])
+        return super().chat(messages, tools)
+
+
+def test_replay_prompt_is_byte_identical_to_original():
+    llm = RecordingChat(FIN)
+    store, gw, agent, _, spec, _ = setup(A2, llm=llm)
+    gw.write(SUBTLE, "tool:web", FIN.tenant, "s0")       # quoted in a nonce-tagged block
+    agent.run_turn(TASK.turn, "trigger", "ep")
+    original = llm.systems[0]
+    assert "<memory_data nonce=" in original
+    (turn,) = store.turns(FIN.tenant, "ep")
+    llm.systems.clear()
+    replay_turn(turn, gw, llm, spec)
+    assert llm.systems[0] == original

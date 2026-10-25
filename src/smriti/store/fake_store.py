@@ -64,9 +64,9 @@ class FakeStore:
                 if m.label.tenant == tenant and m.label.parents & ids]
 
     def record_turn(self, tenant: str, episode_id: str, session_id: str, user_text: str,
-                    ts: float) -> int:
+                    ts: float, nonce: str | None = None) -> int:
         seq = len(self._turns) + 1
-        self._turns.append(Turn(seq, ts, tenant, episode_id, session_id, user_text))
+        self._turns.append(Turn(seq, ts, tenant, episode_id, session_id, user_text, nonce))
         return seq
 
     def turns(self, tenant: str, episode_id: str) -> list[Turn]:

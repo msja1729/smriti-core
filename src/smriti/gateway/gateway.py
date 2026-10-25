@@ -139,7 +139,10 @@ class Gateway:
 
     # -- read --------------------------------------------------------------------------
 
-    def read(self, query: str, tenant: str, k: int = 8) -> RenderedContext:
+    def read(self, query: str, tenant: str, k: int = 8,
+             nonce: str | None = None) -> RenderedContext:
+        """`nonce` is only passed by the auditor's replay (the original turn's nonce);
+        otherwise a fresh unguessable one is drawn per read."""
         start = time.perf_counter()
         self._model_s = 0.0
         results: list[Memory] = []
@@ -148,7 +151,8 @@ class Gateway:
                                        k)
             if any(m.label.tenant != tenant for m in results):
                 raise RuntimeError("store returned another tenant's memory")
-            ctx = render(results, secrets.token_hex(8), escaping=self.config.read_escaping)
+            ctx = render(results, nonce or secrets.token_hex(8),
+                         escaping=self.config.read_escaping)
             self.store.append_ledger(tenant, "read", None, {
                 "memory_ids": ctx.memory_ids, "latency_ms": _ms(start),
                 "model_ms": self._model_s * 1000})

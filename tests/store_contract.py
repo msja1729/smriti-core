@@ -151,12 +151,13 @@ def check_descendants_and_quarantine_are_tenant_scoped(store):
 
 
 def check_turns_roundtrip_and_tenant_scoped(store):
-    s1 = store.record_turn("acme", "ep1", "s1", "Send the invoice.", 1000.0)
+    s1 = store.record_turn("acme", "ep1", "s1", "Send the invoice.", 1000.0, "ab12")
     s2 = store.record_turn("acme", "ep1", "s2", "Read email 7.", 1001.0)
     store.record_turn("other", "ep1", "s1", "theirs", 1002.0)
     turns = store.turns("acme", "ep1")
     assert [t.seq for t in turns] == [s1, s2] and s1 < s2
     assert turns[0].user_text == "Send the invoice." and abs(turns[0].ts - 1000.0) < 1e-3
+    assert turns[0].nonce == "ab12" and turns[1].nonce is None
     assert store.turns("acme", "ep2") == []
 
 

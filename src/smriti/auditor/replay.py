@@ -2,9 +2,10 @@
 memories hidden, and capture what the agent *tries* to do. Nothing is written: the store
 is wrapped read-only, tool calls are captured instead of logged, and the agent runs dry.
 
-Determinism comes from temperature 0. Known limits: the read gate's nonce differs between
-runs, and flags are read as they are now (e.g. a memory archived since the turn stays
-hidden); a replay whose baseline does not reproduce the original call is "inconclusive".
+Determinism: temperature 0, and the original turn's read-gate nonce is reused, so the
+baseline prompt is byte-identical to the original. Known limit: flags are read as they are
+now (e.g. a memory archived since the turn stays hidden); a replay whose baseline does not
+reproduce the original call is "inconclusive".
 """
 import re
 from dataclasses import dataclass
@@ -94,5 +95,5 @@ def replay_turn(turn: Turn, gateway: Gateway, llm: ChatModel, spec: AgentSpec,
     # Approve every confirmation: the question is what the agent would *try* to do.
     tools = ToolRunner(gw, spec.fixtures, lambda tool, args: True, spec.tools)
     agent = Agent(gw, llm, tools, spec.role, turn.tenant, k=spec.k, record=False)
-    agent.run_turn(turn.user_text, turn.session_id, f"replay:{turn.seq}")
+    agent.run_turn(turn.user_text, turn.session_id, f"replay:{turn.seq}", nonce=turn.nonce)
     return view.attempts
