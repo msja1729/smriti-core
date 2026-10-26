@@ -9,3 +9,4 @@ data/raw/
 .ipynb_checkpoints/
 .cache/
 lean/.lake/
+src/*.egg-info/

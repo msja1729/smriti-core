@@ -122,8 +122,8 @@ def main(argv: list[str] | None = None, parts=None, make_store=None) -> None:
     step(8, "NVIDIA stack and roadmap")
     print("  Agent: Nemotron Nano 9B v2 on NIM (A100). Judge: Llama-3.1-Nemotron-Safety-Guard-8B v3"
           "\n  and embeddings: nemotron-3.5-embed-1b, both via build.nvidia.com."
-          "\n  Next: GRPO adaptive attacker (Inception Arena), OpenShell sandbox, Switchyard"
-          " routing attacks.")
+          "\n  Next: adaptive-attacker evaluation, a destination-aware confirmation policy,"
+          " and deployment hardening (migrations, row-level security).")
     for s in (store0, store2, store3):
         _close(s)
 
