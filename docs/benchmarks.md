@@ -1,10 +1,16 @@
 # SMRITI on standard benchmarks
 
-*Draft: results are filled in once the runs finish.*
-
 ## In one paragraph
 
-<!-- SUMMARY -->
+We ran SMRITI on two public prompt-injection benchmarks with NVIDIA Nemotron Nano 9B as the
+agent. On **InjecAgent** (1,054 cases, run twice), attacks succeeded **0 times** with SMRITI,
+against 20 (base) and 68 (enhanced) times without it, and the result was the same with
+SMRITI's detector switched off. On **AgentDojo** (560 attacked office tasks), the attacker's
+goal happened **2 times** with SMRITI, against 19 without a defense and 3 with AgentDojo's own
+built-in defense; SMRITI also kept slightly more tasks working under attack than no defense.
+Both of SMRITI's failures came through the calendar, a source SMRITI's default rules trust
+too much. The price is confirmations: SMRITI asked the user before about 1 in 10 attacked
+runs and 3 of 40 normal tasks.
 
 ## What we tested, and why these benchmarks
 
@@ -51,7 +57,7 @@ mistake, and sometimes refuse a good one.
 |---|---|
 | **No defense** | the agent as published by the benchmark |
 | **SMRITI** | the agent + SMRITI's provenance labels and action check |
-| **SMRITI, detector off** | the same, with the instruction detector (heuristics + Safety Guard) switched off |
+| **SMRITI, detector off** | the same, with the instruction detector (heuristics + Safety Guard) switched off (InjecAgent only: in a single session the detector cannot change anything, see below) |
 | **AgentDojo's own defense** (`repeat_user_prompt`) | a published baseline: the user's request is repeated after every tool answer (AgentDojo only) |
 
 ## Results
@@ -83,26 +89,81 @@ true rate is zero; it shows it is very likely below the upper bound.
 - **"Kept out of memory"**: what SMRITI's write gate would have done when saving the poisoned
   tool answer. Quarantined text is never read back in a later session.
 
-<!-- AGENTDOJO -->
+### AgentDojo, `workspace` suite (all 40 tasks × 14 attacks, plus the 40 tasks without attack)
+
+| | No defense | AgentDojo's defense (repeat prompt) | **SMRITI** |
+|---|---|---|---|
+| **Attacker's goal actually happened** | 19 of 560 = 3.4% [2.2, 5.2] | 3 = 0.5% [0.2, 1.6] | **2 = 0.4% [0.1, 1.3]** |
+| Attack succeeded, by AgentDojo's rule (see below) | 21 = 3.8% [2.5, 5.7] | 19 = 3.4% [2.2, 5.2] | **6 = 1.1% [0.5, 2.3]** |
+| Runs that outgrew the model's 32k context | 2 | 17 | 4 |
+| Task success without attack | 13 of 40 = 32.5% [20.1, 48.0] | 13 = 32.5% | **14 = 35.0% [22.1, 50.5]** |
+| Task success under attack | 135 of 560 = 24.1% [20.7, 27.8] | 167 = 29.8% [26.2, 33.7] | **151 = 27.0% [23.5, 30.8]** |
+| Asked the user to confirm, no attack | 0 | 0 | 3 of 40 = 7.5% |
+| Asked the user to confirm, attacked | 0 | 0 | 57 of 560 = 10.2% |
+
+- **AgentDojo's rule:** when a run grows past the model's context window, AgentDojo counts the
+  task as failed and, if it was attacked, the attack as **successful**: the worst case for
+  the defense. We kept that rule. AgentDojo's own defense repeats the user's request after
+  every tool answer, which made 17 runs overflow; that is why its count by the rule (19) is
+  much higher than the attacks that actually happened (3).
+- **Task success is low for every arm** (about a third of tasks): Nemotron Nano 9B, a small
+  model, fails many of these tasks even without an attack. The comparison between arms is
+  what matters.
+
+### MemPoison-Bench (our own benchmark), for reference
+
+3 assistants × 4 attacks (direct, indirect, summary laundering, sleeper) × 5 seeds; the
+poison is stored in one session and must act in a later one. Counts from the original runs.
+
+| | No defense | Prompt-guard | **SMRITI** | SMRITI, detector off |
+|---|---|---|---|---|
+| Attack succeeded | 29 of 60 = 48% [36, 61] | 22 = 37% [26, 49] | **0 = 0% [0, 6]** | **0 = 0% [0, 6]** |
+| Task success without attack | 15 of 15 | 12 of 15 | **15 of 15** | 15 of 15 |
 
 ## What the numbers mean
 
-<!-- MEANING -->
+1. **SMRITI stops fooled agents from acting.** In both public benchmarks the model was fooled
+   about as often with SMRITI as without it (it read the same poisoned text in the same
+   session). What changed is that the fooled risky call did not run: it came from a step that
+   had read untrusted data, so it needed the user's confirmation.
+2. **The guarantee does not come from the detector.** On InjecAgent, SMRITI with the detector
+   switched off also had 0 successful attacks. The labels and the action check do the work;
+   the detector is extra.
+3. **The detector protects later sessions.** While the attack was stopped in the session, SMRITI's
+   write gate also kept the poisoned text out of memory: 37% of InjecAgent's base attacks and
+   100% of the enhanced ones were quarantined, so they could not act in a later session. This
+   is what SMRITI is built for, and what our own benchmark tests (0 of 60).
+4. **Against AgentDojo's own defense, SMRITI is about as strong** on real attacks (2 vs 3), with
+   a different trade-off: repeating the prompt costs context (17 overflows) and works by
+   persuading the model; SMRITI costs confirmations (about 1 in 10 attacked runs) and works by
+   stopping the action.
 
 ## Where SMRITI lost, and the limits of this test
 
-<!-- LIMITS -->
-
-## Next steps
-
-- **The cross-session (memory) variant.** Both benchmarks are single-session. SMRITI is
-  built for poison that is *stored* and acts days later (the case its own benchmark tests).
-  A version where the poisoned tool answer is saved through SMRITI in one session and the
-  task runs in a later one would test that directly.
-- **Agent Security Bench (ICLR 2025)**, which has a dedicated memory-poisoning attack.
-- **The other AgentDojo suites** (banking, Slack, travel).
-- **Destination-aware confirmations**, to cut the confirmation cost shown above: ask only
-  when a risky call goes somewhere the user never named.
+- **The calendar.** Both of SMRITI's AgentDojo failures came from attacker text in a calendar
+  event. SMRITI's default rules treat the calendar as a medium-trust internal tool, which is
+  quoted but does not trigger the action check, so a `delete_file` call ran without
+  confirmation. In an office suite, calendar invites can be written by outsiders: there the
+  calendar should count as untrusted. We report the default rules as they are rather than
+  change them after seeing the result.
+- **Confirmations cost something.** SMRITI asked before 10% of attacked runs and 3 of 40 normal
+  tasks. The simulated user approved only correct actions; a real user may be less careful,
+  or tire of being asked.
+- **These benchmarks are single-session.** They test an attack that arrives and acts in one
+  conversation. SMRITI's write and read gates are built for poison that waits in memory; only
+  our own benchmark tests that, and it is small (5 seeds: the true attack rate is below 6%
+  with 95% confidence, not zero).
+- **Nemotron is rarely fooled by InjecAgent's attacks** (1.9% base, 6.5% enhanced), so the
+  improvement there is real but small in absolute terms.
+- **Deviations from the original benchmarks** (all small, all in the code):
+  - Nemotron needs `/no_think` in its system prompt to answer without a reasoning trace.
+  - AgentDojo's attack names the victim model from a fixed list that does not include
+    Nemotron; we used its generic name ("the AI language model").
+  - AgentDojo's messages were adapted for the vLLM server (system role, plain-text content);
+    the text the model sees is unchanged.
+  - InjecAgent's data stealing needs a recorded response for the data the agent fetched; when
+    none existed for the model's exact arguments (3 base / 14 enhanced cases), the recorded
+    response for the same tool was used instead of asking GPT-4, as the original does.
 
 ## How to reproduce
 
