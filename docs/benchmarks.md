@@ -121,11 +121,19 @@ poison is stored in one session and must act in a later one. Counts from the ori
 | Attack succeeded | 29 of 60 = 48% [36, 61] | 22 = 37% [26, 49] | **0 = 0% [0, 6]** | **0 = 0% [0, 6]** |
 | Task success without attack | 15 of 15 | 12 of 15 | **15 of 15** | 15 of 15 |
 | Task success under attack | 31 of 60 = 52% | 31 of 60 = 52% | **51 of 60 = 85%** | 46 of 60 = 77% |
-| Clean tasks needing a confirmation | 0 | 0 | 15 of 15 | – |
+| Clean tasks needing a confirmation | 0 | 0 | 15 of 15 | 15 of 15 |
 
-Ablations (SMRITI with one layer switched off): **action check off: 9 of 60** attacks
-succeed; **provenance labels off: 29 of 60**, the same as no defense. The labels are the
-foundation; the other layers build on them.
+With the detector off, the confirmations stay the same: they come from untrusted (LOW) memory
+being visible, not from the detector.
+
+Ablations (SMRITI with one layer switched off):
+
+| | Attack succeeded | Task success without attack | Task success under attack |
+|---|---|---|---|
+| Action check off | 9 of 60 = 15% | 15 of 15 | 51 of 60 = 85% |
+| Provenance labels off | 29 of 60 = 48% (same as no defense) | 15 of 15 | 31 of 60 = 52% |
+
+The labels are the foundation; the other layers build on them.
 
 ## What the numbers mean
 
