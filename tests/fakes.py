@@ -3,7 +3,7 @@ import re
 
 from smriti.models.hash_embed import HashEmbedder
 from smriti.models.nim import LlmReply
-from smriti.models.pii import PiiResult
+from smriti.models.pii import SEALED, PiiResult, PiiSealer, Unsealed, unseal_or_fail
 
 
 class FakeEmbedder(HashEmbedder):
@@ -37,24 +37,36 @@ class FakeJudge:
 
 
 class FakePii:
-    """Redacts phone numbers; reports emails without redacting (mirrors the default policy)."""
+    """Redacts phone numbers, or seals them when given a sealer and a tenant; reports emails
+    without redacting (mirrors the default policy). Sealing uses the real PiiSealer."""
 
     PHONE = re.compile(r"\+?\d[\d -]{7,}\d")
     EMAIL = re.compile(r"[\w.+-]+@[\w-]+(\.[\w-]+)+")
 
-    def __init__(self, fail: bool = False):
+    def __init__(self, fail: bool = False, sealer: PiiSealer | None = None):
         self.fail = fail
+        self.sealer = sealer
 
-    def redact(self, text: str) -> PiiResult:
+    def redact(self, text: str, tenant: str | None = None) -> PiiResult:
         if self.fail:
             raise RuntimeError("pii down")
         found = set()
-        if self.PHONE.search(text):
+        sealed = [m.span() for m in SEALED.finditer(text)]
+
+        def phone(m: re.Match) -> str:
+            if any(s <= m.start() < e for s, e in sealed):
+                return m.group(0)
             found.add("PHONE_NUMBER")
-            text = self.PHONE.sub("[PHONE]", text)
+            if self.sealer is not None and tenant is not None:
+                return self.sealer.seal(m.group(0), "PHONE_NUMBER", tenant)
+            return "[PHONE]"
+        text = self.PHONE.sub(phone, text)
         if self.EMAIL.search(text):
             found.add("EMAIL_ADDRESS")
         return PiiResult(text, frozenset(found))
+
+    def unseal(self, text: str, tenant: str | None) -> Unsealed:
+        return unseal_or_fail(self.sealer, text, tenant)
 
 
 class FakeSummarizer:

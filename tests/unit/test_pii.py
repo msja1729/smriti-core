@@ -37,3 +37,41 @@ def test_iban_kept_but_found(pii):
 def test_business_text_untouched(pii, text):
     r = pii.redact(text)
     assert r.text == text and r.found == frozenset()
+
+
+# -- sealing (reversible) -----------------------------------------------------------------
+
+@pytest.fixture(scope="module")
+def sealing():
+    from smriti.models.pii import PiiSealer
+    return PresidioRedactor(sealer=PiiSealer(bytes(range(32))))
+
+
+def test_without_sealer_phone_and_name_are_redacted_as_before(pii):
+    r = pii.redact("Sam (sam@example.com) is my cousin, +1 415-555-0132.", "personal")
+    assert "[PERSON]" in r.text and "[PHONE]" in r.text and "sam@example.com" in r.text
+
+
+def test_sealer_encrypts_phone_and_name(sealing):
+    r = sealing.redact("Sam (sam@example.com) is my cousin, +1 415-555-0132.", "personal")
+    assert "Sam " not in r.text and "555" not in r.text and "sam@example.com" in r.text
+    assert "[PERSON:" in r.text and "[PHONE_NUMBER:" in r.text
+    assert {"PERSON", "PHONE_NUMBER", "EMAIL_ADDRESS"} <= r.found
+    out = sealing.unseal(r.text, "personal")
+    assert out.text == "Sam (sam@example.com) is my cousin, +1 415-555-0132."
+
+
+def test_sealer_without_tenant_redacts(sealing):
+    r = sealing.redact("Call +1 415-555-0132.")
+    assert "[PHONE]" in r.text and "[PHONE_NUMBER:" not in r.text
+
+
+def test_never_needed_identifiers_stay_permanently_redacted(sealing):
+    r = sealing.redact("My card is 4111 1111 1111 1111.", "personal")
+    assert r.text == "My card is [CARD]."
+
+
+def test_already_sealed_text_is_not_sealed_again(sealing):
+    once = sealing.redact("Call Sam at +1 415-555-0132.", "personal").text
+    twice = sealing.redact(f"Summary: {once}", "personal").text
+    assert twice == f"Summary: {once}"
