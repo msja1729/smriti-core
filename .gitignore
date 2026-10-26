@@ -10,3 +10,4 @@ data/raw/
 .cache/
 lean/.lake/
 src/*.egg-info/
+third_party/
