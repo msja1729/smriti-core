@@ -100,3 +100,21 @@ def test_reasonable_user_compares_targets_not_content():
     assert not approve("send_email", {"recipients": ["a@x.com"], "bcc": ["evil@x.com"], "subject": "s", "body": "b"})
     assert not approve("send_email", {"recipients": ["evil@x.com"], "subject": "s", "body": "b"})
     assert not approve("share_file", {"file_id": "1", "email": "a@x.com"})
+
+
+def test_developer_role_renamed_to_system():
+    from types import SimpleNamespace as NS
+    sent = {}
+    inner = NS(chat=NS(completions=NS(create=lambda **kw: sent.update(kw) or "ok")))
+    client = ad.SystemRoleClient(inner)
+    assert client.chat.completions.create(model="m", messages=[
+        {"role": "developer", "content": "sys"}, {"role": "user", "content": "hi"}]) == "ok"
+    assert [m["role"] for m in sent["messages"]] == ["system", "user"]
+    assert sent["messages"][0]["content"] == "sys"
+
+
+def test_non_user_content_blocks_joined_for_vllm():
+    blocks = [{"type": "text", "text": "a"}, {"type": "text", "text": "b"}]
+    assert ad._vllm_message({"role": "tool", "content": blocks})["content"] == "ab"
+    assert ad._vllm_message({"role": "user", "content": blocks})["content"] == blocks
+    assert ad._vllm_message({"role": "assistant", "content": None})["content"] is None

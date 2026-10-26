@@ -127,6 +127,29 @@ class SmritiToolsExecutor(ToolsExecutor):
         return query, runtime, env, done, extra_args
 
 
+def _vllm_message(m: dict) -> dict:
+    if m.get("role") == "developer":
+        m = {**m, "role": "system"}
+    if m.get("role") != "user" and isinstance(m.get("content"), list):
+        m = {**m, "content": "".join(b.get("text", "") for b in m["content"])}
+    return m
+
+
+class SystemRoleClient:
+    """Adapts AgentDojo's OpenAI messages to vLLM, text unchanged: the system prompt goes
+    with OpenAI's "developer" role, which vLLM rejects (-> "system"), and every message's
+    content is a list of blocks, which vLLM takes only for user messages (-> joined text)."""
+
+    def __init__(self, client):
+        self._client = client
+        self.chat = self
+        self.completions = self
+
+    def create(self, **kwargs):
+        kwargs["messages"] = [_vllm_message(m) for m in kwargs["messages"]]
+        return self._client.chat.completions.create(**kwargs)
+
+
 class GenericImportantInstructions(ImportantInstructionsAttack):
     """important_instructions with the generic model name (no model-name lookup)."""
     name = "important_instructions_generic_model"
@@ -227,7 +250,8 @@ def main(argv: list[str] | None = None) -> None:
     args = ap.parse_args(argv)
 
     suite = get_suite(args.version, args.suite)
-    llm = OpenAILLM(openai.OpenAI(base_url=args.base_url, api_key="EMPTY", timeout=180), args.model)
+    client = openai.OpenAI(base_url=args.base_url, api_key="EMPTY", timeout=180)
+    llm = OpenAILLM(SystemRoleClient(client), args.model)
     system_message = "/no_think\n" + load_system_message(None)
     config = replace(A2, risky_tools=frozenset(t.name for t in suite.tools if is_risky(t.name)))
     user_ids = args.user_tasks.split(",") if args.user_tasks else list(suite.user_tasks)
