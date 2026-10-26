@@ -109,7 +109,6 @@ tr.hl td:first-child { font-weight: 700; }
 .chart .row:hover .bar { filter: brightness(1.1); }
 .chart .axis { display: grid; grid-template-columns: minmax(110px, 200px) 1fr; gap: 12px; font-size: 0.75rem; color: var(--text-3); }
 .chart .axis div:last-child { display: flex; justify-content: space-between; border-top: 1px solid var(--border); padding-top: 2px; }
-.limits li { margin: 0 0 10px; }
 footer { margin-top: 64px; padding-top: 16px; border-top: 1px solid var(--border); font-size: 0.875rem; color: var(--text-3); }
 .theme-btn { background: none; border: 1px solid var(--border); color: var(--text-2); border-radius: 6px; padding: 2px 8px; cursor: pointer; font: inherit; }
 @media (max-width: 560px) {
@@ -124,7 +123,7 @@ footer { margin-top: 64px; padding-top: 16px; border-top: 1px solid var(--border
   <span class="brand">SMRITI</span>
   <span class="links" style="display:flex;gap:16px;flex-wrap:wrap">
     <a href="#how">How it works</a><a href="#demo">Demo</a><a href="#results">Results</a>
-    <a href="#use">Use it</a><a href="#limits">Limits</a>
+    <a href="#use">Use it</a>
     <a href="https://github.com/msja1729/smriti-core">GitHub</a>
   </span>
   <button class="theme-btn" id="theme" type="button" aria-label="Toggle dark mode">◐</button>
@@ -254,26 +253,6 @@ python examples/openai_agent.py --fake-model --protect      # the attacker gets 
   <a href="https://github.com/msja1729/smriti-core/blob/main/src/smriti/external/agentdojo_run.py">agentdojo_run.py</a>.</p>
 </section>
 
-<section id="limits">
-  <h2>Honest limits</h2>
-  <ul class="limits">
-    <li><b>The public benchmarks are single-session.</b> InjecAgent and AgentDojo test an attack
-    that arrives and acts in the same conversation. There, SMRITI's protection is the action
-    check; the write and read gates, built for poison that waits in memory, are tested by our
-    own benchmark.</li>
-    <li><b>Confirmations have a cost.</b> Any untrusted text in context makes every risky action
-    need a "yes", including legitimate ones (15 of 15 legitimate risky actions in our
-    benchmark). The benchmarks used a simulated user who approves only the correct actions; a
-    real, tired user might approve a bad one.</li>
-    <li><b>Medium-trust sources are untested.</b> Internal tools such as a calendar or CRM are
-    MED and do not trigger the action check. Poison that arrives through them (a calendar
-    invite from outside, a CRM note copied from an email) is only quoted, not stopped.</li>
-    <li><b>Small sample on our own benchmark.</b> With 5 seeds, 0 of 60 means the true attack
-    rate is below 6% with 95% confidence, not that it is zero.</li>
-    <li><b>Nemotron is rarely fooled by InjecAgent's attacks</b> (2% base, 6.5% enhanced), so the
-    gap there is real but small.</li>
-  </ul>
-</section>
 
 <footer>
   MIT licensed · Agent: NVIDIA Nemotron Nano 9B v2 · Judge: Llama-3.1-Nemotron-Safety-Guard-8B v3 ·
