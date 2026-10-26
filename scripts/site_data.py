@@ -24,14 +24,19 @@ def rate(k: int | None, n: int | None) -> dict | None:
 
 
 def mempoison() -> dict:
-    # README "Results" table and the auditor line; utility under attack was not recorded.
+    # Counts from the original MemPoison-Bench runs (metrics.json of that run; README table).
     return {
         "arms": [
-            {"name": "No defense", "attack": rate(29, 60), "clean": rate(15, 15)},
-            {"name": "Prompt-guard", "attack": rate(22, 60), "clean": rate(12, 15)},
+            {"name": "No defense", "attack": rate(29, 60), "clean": rate(15, 15),
+             "under_attack": rate(31, 60)},
+            {"name": "Prompt-guard", "attack": rate(22, 60), "clean": rate(12, 15),
+             "under_attack": rate(31, 60)},
             {"name": "SMRITI", "attack": rate(0, 60), "clean": rate(15, 15),
-             "confirm_clean": rate(15, 15), "highlight": True},
-            {"name": "SMRITI, detector off", "attack": rate(0, 60), "clean": rate(15, 15)},
+             "under_attack": rate(51, 60), "confirm_clean": rate(15, 15), "highlight": True},
+            {"name": "SMRITI, detector off", "attack": rate(0, 60), "clean": rate(15, 15),
+             "under_attack": rate(46, 60)},
+            {"name": "SMRITI, action check off", "attack": rate(9, 60)},
+            {"name": "SMRITI, provenance labels off", "attack": rate(29, 60)},
         ],
         "extra": {"laundering_survival": rate(0, 15), "false_quarantine": rate(0, 105),
                   "cross_tenant_leaks": 0, "auditor_false_rollbacks": 0,

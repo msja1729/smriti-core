@@ -7,7 +7,8 @@ agent. On **InjecAgent** (1,054 cases, run twice), attacks succeeded **0 times**
 against 20 (base) and 68 (enhanced) times without it, and the result was the same with
 SMRITI's detector switched off. On **AgentDojo** (560 attacked office tasks), the attacker's
 goal happened **2 times** with SMRITI, against 19 without a defense and 3 with AgentDojo's own
-built-in defense; SMRITI also kept slightly more tasks working under attack than no defense.
+built-in defense: close to a tie with that defense, which also kept more tasks working under
+attack (167 vs 151 of 560).
 Both of SMRITI's failures came through the calendar, a source SMRITI's default rules trust
 too much. The price is confirmations: SMRITI asked the user before about 1 in 10 attacked
 runs and 3 of 40 normal tasks.
@@ -119,6 +120,12 @@ poison is stored in one session and must act in a later one. Counts from the ori
 |---|---|---|---|---|
 | Attack succeeded | 29 of 60 = 48% [36, 61] | 22 = 37% [26, 49] | **0 = 0% [0, 6]** | **0 = 0% [0, 6]** |
 | Task success without attack | 15 of 15 | 12 of 15 | **15 of 15** | 15 of 15 |
+| Task success under attack | 31 of 60 = 52% | 31 of 60 = 52% | **51 of 60 = 85%** | 46 of 60 = 77% |
+| Clean tasks needing a confirmation | 0 | 0 | 15 of 15 | – |
+
+Ablations (SMRITI with one layer switched off): **action check off: 9 of 60** attacks
+succeed; **provenance labels off: 29 of 60**, the same as no defense. The labels are the
+foundation; the other layers build on them.
 
 ## What the numbers mean
 
@@ -127,14 +134,17 @@ poison is stored in one session and must act in a later one. Counts from the ori
    session). What changed is that the fooled risky call did not run: it came from a step that
    had read untrusted data, so it needed the user's confirmation.
 2. **The guarantee does not come from the detector.** On InjecAgent, SMRITI with the detector
-   switched off also had 0 successful attacks. The labels and the action check do the work;
-   the detector is extra.
+   switched off also had 0 successful attacks. In the enhanced version the detector quarantined
+   all 1,054 poisoned texts (they contain an obvious "IMPORTANT!!! Ignore all previous
+   instructions"), so the detector-off result is the stronger evidence: the labels and the
+   action check do the work; the detector is extra.
 3. **The detector protects later sessions.** While the attack was stopped in the session, SMRITI's
    write gate also kept the poisoned text out of memory: 37% of InjecAgent's base attacks and
    100% of the enhanced ones were quarantined, so they could not act in a later session. This
    is what SMRITI is built for, and what our own benchmark tests (0 of 60).
-4. **Against AgentDojo's own defense, SMRITI is about as strong** on real attacks (2 vs 3), with
-   a different trade-off: repeating the prompt costs context (17 overflows) and works by
+4. **Against AgentDojo's own defense, SMRITI is about as strong** on real attacks (2 vs 3), not
+   clearly better, and that defense kept more tasks working under attack (167 vs 151 of 560).
+   The trade-off differs: repeating the prompt costs context (17 overflows) and works by
    persuading the model; SMRITI costs confirmations (about 1 in 10 attacked runs) and works by
    stopping the action.
 
@@ -153,8 +163,8 @@ poison is stored in one session and must act in a later one. Counts from the ori
   conversation. SMRITI's write and read gates are built for poison that waits in memory; only
   our own benchmark tests that, and it is small (5 seeds: the true attack rate is below 6%
   with 95% confidence, not zero).
-- **Nemotron is rarely fooled by InjecAgent's attacks** (1.9% base, 6.5% enhanced), so the
-  improvement there is real but small in absolute terms.
+- **Nemotron is rarely fooled by InjecAgent's attacks** (1.9% base, 6.5% enhanced), so that
+  benchmark has little room to show a difference: SMRITI's 0 is real, but the gap is small.
 - **Deviations from the original benchmarks** (all small, all in the code):
   - Nemotron needs `/no_think` in its system prompt to answer without a reasoning trace.
   - AgentDojo's attack names the victim model from a fixed list that does not include
