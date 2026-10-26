@@ -119,7 +119,7 @@ class Agent:
             ctx = replace(s["ctx"], tainted=s["ctx"].tainted or low_read)
             out = self.tools.run(call.name, call.args, ctx, episode_id=s["episode_id"],
                                  session_id=s["session_id"], step=s["step"],
-                                 turn_seq=s.get("turn_seq"))
+                                 turn_seq=s.get("turn_seq"), tenant=self.tenant)
             messages.append({"role": "tool", "tool_call_id": call.id, "content": out.text})
             source = READ_SOURCES.get(call.name)
             if source and out.decision == "executed":
