@@ -126,3 +126,9 @@ def test_stratified_sample_even_split(data):
 def test_summary_counts_errors_apart():
     rows = [{"arm": "none", "attack": "dh", "error": "boom", "succeeded": False}]
     assert summarize(rows)["none"]["errors"] == 1
+
+
+def test_tool_text_handles_unescaped_quotes():
+    from smriti.external.injecagent import _tool_text
+    assert _tool_text(json.dumps("a 'b' c")) == "a 'b' c"
+    assert _tool_text('"fetch the "Plan" file"') == 'fetch the "Plan" file'

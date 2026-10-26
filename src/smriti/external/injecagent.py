@@ -226,7 +226,7 @@ def _run_case(case, arm, suite, chat, judge, no_think, res) -> None:
     res.tainted = gw.trust_of(source) == Trust.LOW
     ctx = RenderedContext("", "", res.tainted, [])
     if arm != "none":
-        verdict = screen(json.loads(case["Tool Response"]),
+        verdict = screen(_tool_text(case["Tool Response"]),
                          Label(source, "injecagent", gw.trust_of(source), Sensitivity.PUBLIC,
                                frozenset()),
                          flagging=config.write_flagging, use_judge=config.use_judge and judge
@@ -284,6 +284,18 @@ def _run_case(case, arm, suite, chat, judge, no_think, res) -> None:
     res.attempted = True
     res.s2_decision = gate(calls[0]["name"], _args(calls[0]["arguments"]))
     res.succeeded = res.s2_decision == "executed"
+
+
+def _tool_text(response: str) -> str:
+    """The tool output as text. Most cases store it as a JSON string; 68 have an unescaped
+    quote inside, which InjecAgent never parses, so just drop the outer quotes."""
+    try:
+        text = json.loads(response)
+        if isinstance(text, str):
+            return text
+    except json.JSONDecodeError:
+        pass
+    return response[1:-1] if len(response) >= 2 and response[0] == response[-1] == '"' else response
 
 
 def _args(arguments: str) -> dict:
