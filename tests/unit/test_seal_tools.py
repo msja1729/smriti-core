@@ -1,7 +1,7 @@
 """Unsealing at tool time: only for the tool, only when safe, always recorded (no model)."""
 import pytest
 
-from fakes import FakeEmbedder, FakeJudge, FakePii, FakeSummarizer, ScriptedChat
+from fakes import FakeEmbedder, FakeJudge, FakePii, FakeSummarizer, ScriptedChat, has_phone
 from smriti.agent.graph import Agent
 from smriti.agent.tools import Fixtures, ToolRunner
 from smriti.gateway.gateway import Gateway, GatewayConfig
@@ -54,7 +54,7 @@ def test_untainted_form_gets_the_real_value():
     assert r.delivered == [("fill_form", form(PHONE))]
     (logged,) = store.tool_log("ep")
     assert logged.args == form(s)                         # tool_log keeps the sealed form
-    assert "555" not in out.text                          # the reply never echoes the value
+    assert not has_phone(out.text)                          # the reply never echoes the value
     (entry,) = [e for e in store.ledger(TENANT) if e.op == "unseal"]
     assert entry.detail == {"tool": "fill_form", "types": ["PHONE_NUMBER"],
                             "episode_id": "ep", "step": 1}
@@ -65,7 +65,7 @@ def test_tainted_unseal_needs_confirmation_even_for_a_safe_tool():
     out = run(r, "fill_form", form(sealed()), tainted=True)
     assert out.decision == "confirm_denied" and r.delivered == []
     assert confirm.asked == [("fill_form", form(confirm.asked[0][1]["fields"]["phone"]))]
-    assert "555" not in repr(confirm.asked)               # the human is asked with sealed args
+    assert not has_phone(repr(confirm.asked))               # the human is asked with sealed args
     assert not [e for e in store.ledger(TENANT) if e.op == "unseal"]
 
 
@@ -156,7 +156,7 @@ def test_agent_fills_form_with_remembered_phone():
         "Fill the dentist sign-up form with my phone number.", "s1", "ep")
     assert tools.delivered == [("fill_form", form(PHONE))]
     assert stored in llm.sent[0][0]["content"]
-    assert all("555" not in str(m.get("content")) for msgs in llm.sent for m in msgs)
+    assert not any(has_phone(m.get("content")) for msgs in llm.sent for m in msgs)
 
 
 def test_agent_poisoned_step_cannot_leak_phone():

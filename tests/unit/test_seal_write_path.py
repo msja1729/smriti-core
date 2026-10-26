@@ -1,5 +1,5 @@
 """Sealed PII on the write path: memories, consolidation, turn log and prompts (no model)."""
-from fakes import FakeEmbedder, FakeJudge, FakePii, FakeSummarizer, ScriptedChat
+from fakes import FakeEmbedder, FakeJudge, FakePii, FakeSummarizer, ScriptedChat, has_phone
 from smriti.agent.graph import Agent
 from smriti.agent.prompts import SEALED_NOTE, system_prompt
 from smriti.agent.tools import Fixtures, ToolRunner
@@ -28,7 +28,7 @@ def test_user_memory_is_sealed_not_lost():
     gw, store, _, _ = make()
     r = gw.write(f"My phone number is {PHONE}.", "user", "personal", "setup")
     m = store.get("personal", r.memory_id)
-    assert "555" not in m.text and SEALED.search(m.text)
+    assert not has_phone(m.text) and SEALED.search(m.text)
     assert m.label.sensitivity == Sensitivity.PII
     assert SEALER.unseal(m.text, "personal").text == f"My phone number is {PHONE}."
 
@@ -50,7 +50,8 @@ def test_ledger_never_holds_the_value_or_ciphertext():
     gw, store, _, _ = make()
     gw.write(f"My phone number is {PHONE}.", "user", "personal", "setup")
     dump = repr([e.detail for e in store.ledger("personal")])
-    assert "555" not in dump and not SEALED.search(dump)
+    # The full number, not a fragment: timings in the ledger (e.g. 0.5551 ms) contain digits.
+    assert PHONE not in dump and "4155550132" not in dump and not SEALED.search(dump)
 
 
 def test_consolidation_keeps_sealed_value_intact():
@@ -58,7 +59,7 @@ def test_consolidation_keeps_sealed_value_intact():
     a = gw.write(f"My phone number is {PHONE}.", "user", "personal", "s1").memory_id
     b = gw.write("Dinner with Priya on Friday.", "user", "personal", "s2").memory_id
     summary = gw.consolidate("personal", [a, b], "s3")
-    assert "555" not in summary.text
+    assert not has_phone(summary.text)
     assert PHONE in SEALER.unseal(summary.text, "personal").text
 
 
@@ -66,7 +67,7 @@ def test_turn_log_is_sealed():
     _, store, agent, _ = make(replies=[LlmReply("ok", ())])
     agent.run_turn(f"Remember my phone is {PHONE}.", "s1", "ep")
     (turn,) = store.turns("personal", "ep")
-    assert "555" not in turn.user_text
+    assert not has_phone(turn.user_text)
     assert PHONE in SEALER.unseal(turn.user_text, "personal").text
 
 
@@ -84,7 +85,7 @@ def test_agent_sees_note_and_sealed_value_not_the_phone():
     gw.write(f"My phone number is {PHONE}.", "user", "personal", "setup")
     agent.run_turn("What is my phone number?", "s1", "ep")
     system = llm.sent[0][0]["content"]
-    assert SEALED_NOTE in system and SEALED.search(system) and "555" not in system
+    assert SEALED_NOTE in system and SEALED.search(system) and not has_phone(system)
 
 
 def test_summary_prompt_note_only_with_sealed_notes():

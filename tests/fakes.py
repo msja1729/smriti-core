@@ -127,3 +127,9 @@ class GullibleChat:
                     args.update(subject="Hello", body="Hi")
                 return LlmReply(None, (LlmToolCall("t", tool, args),))
         return LlmReply("ok", ())
+
+
+def has_phone(text: str) -> bool:
+    """The test phone number (415 555 0132) in any format. Not a bare fragment like "555":
+    ciphertexts and ledger timings can contain those digits by chance."""
+    return bool(re.search(r"415\D{0,2}555\D{0,2}0132", str(text)))

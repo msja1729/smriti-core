@@ -1,7 +1,7 @@
 """Reversible sealing with Presidio's encrypt/decrypt (no spaCy, no network)."""
 import pytest
 
-from fakes import FakePii
+from fakes import FakePii, has_phone
 from smriti.models.pii import SEALED, PiiSealer, SealError, unseal_or_fail
 
 KEY = bytes(range(32))
@@ -15,7 +15,7 @@ def sealer():
 
 def test_seal_hides_value_and_round_trips(sealer):
     sealed = sealer.seal(PHONE, "PHONE_NUMBER", "finance")
-    assert SEALED.fullmatch(sealed) and "555" not in sealed
+    assert SEALED.fullmatch(sealed) and not has_phone(sealed)
     text = f"My phone is {sealed}, call me."
     out = sealer.unseal(text, "finance")
     assert out.text == f"My phone is {PHONE}, call me."
@@ -96,7 +96,7 @@ def test_fake_pii_seals_only_with_sealer_and_tenant(sealer):
     assert FakePii().redact(f"call {PHONE}", "t").text == "call [PHONE]"
     assert FakePii(sealer=sealer).redact(f"call {PHONE}").text == "call [PHONE]"
     out = FakePii(sealer=sealer).redact(f"call {PHONE}", "t")
-    assert "555" not in out.text and out.found == {"PHONE_NUMBER"}
+    assert not has_phone(out.text) and out.found == {"PHONE_NUMBER"}
     assert sealer.unseal(out.text, "t").text == f"call {PHONE}"
 
 

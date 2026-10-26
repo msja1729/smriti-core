@@ -1,6 +1,8 @@
 """Real Presidio on CPU (no network). Default policy: redact phone etc., keep email/IBAN."""
 import pytest
 
+from fakes import has_phone
+
 pytest.importorskip("presidio_analyzer")
 
 from smriti.models.pii import PresidioRedactor  # noqa: E402
@@ -13,7 +15,7 @@ def pii():
 
 def test_phone_redacted(pii):
     r = pii.redact("Call Bob at +1 415-555-0132 tomorrow.")
-    assert "[PHONE]" in r.text and "555" not in r.text
+    assert "[PHONE]" in r.text and not has_phone(r.text)
     assert "PHONE_NUMBER" in r.found
 
 
@@ -54,7 +56,7 @@ def test_without_sealer_phone_and_name_are_redacted_as_before(pii):
 
 def test_sealer_encrypts_phone_and_name(sealing):
     r = sealing.redact("Sam (sam@example.com) is my cousin, +1 415-555-0132.", "personal")
-    assert "Sam " not in r.text and "555" not in r.text and "sam@example.com" in r.text
+    assert "Sam " not in r.text and not has_phone(r.text) and "sam@example.com" in r.text
     assert "[PERSON:" in r.text and "[PHONE_NUMBER:" in r.text
     assert {"PERSON", "PHONE_NUMBER", "EMAIL_ADDRESS"} <= r.found
     out = sealing.unseal(r.text, "personal")

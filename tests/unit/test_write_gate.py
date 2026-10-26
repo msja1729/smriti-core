@@ -3,7 +3,7 @@ from dataclasses import replace
 
 import pytest
 
-from fakes import FakeEmbedder, FakeJudge, FakePii, FakeSummarizer
+from fakes import FakeEmbedder, FakeJudge, FakePii, FakeSummarizer, has_phone
 from smriti.gateway.gateway import Gateway, GatewayConfig
 from smriti.gateway.labels import Sensitivity, Trust
 from smriti.gateway.write_gate import trust_for
@@ -91,7 +91,7 @@ def test_pii_redacted_and_sensitivity_set():
     gw, store, _ = make()
     r = gw.write("Bob's phone is +1 415 555 0132.", "tool:email", "acme", "s1")
     m = store.get("acme", r.memory_id)
-    assert "[PHONE]" in m.text and "555" not in m.text
+    assert "[PHONE]" in m.text and not has_phone(m.text)
     assert m.label.sensitivity == Sensitivity.PII
 
 
@@ -125,7 +125,7 @@ def test_every_attempt_ledgered_without_raw_text():
     dumped = json.dumps([e.detail for e in entries])
     for t in texts:
         assert t not in dumped
-    assert "555" not in dumped
+    assert not has_phone(dumped)
 
 
 def test_latency_reported():
