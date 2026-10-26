@@ -11,3 +11,4 @@ data/raw/
 lean/.lake/
 src/*.egg-info/
 third_party/
+results/
