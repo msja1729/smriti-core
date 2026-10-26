@@ -162,3 +162,18 @@ def test_model_time_recorded_separately():
     gw.read("invoice", "acme")
     for e in store.ledger("acme"):
         assert e.detail["model_ms"] >= 20 and e.detail["latency_ms"] >= e.detail["model_ms"]
+
+
+def test_quota_by_trust_high_unlimited_med_looser_than_low():
+    gw, _, _ = make(GatewayConfig(quota_low_writes_per_session=2,
+                                  quota_med_writes_per_session=4))
+    statuses = lambda source, n: [gw.write(f"{source} note {i}", source, "acme", "s1").status
+                                  for i in range(n)]
+    assert statuses("tool:web", 3) == ["stored"] * 2 + ["rejected"]          # LOW
+    assert statuses("tool:calendar", 5) == ["stored"] * 4 + ["rejected"]     # MED
+    assert set(statuses("user", 50)) == {"stored"}                           # HIGH
+
+
+def test_default_quotas():
+    cfg = GatewayConfig()
+    assert cfg.quota_low_writes_per_session < cfg.quota_med_writes_per_session

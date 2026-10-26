@@ -32,7 +32,10 @@ class GatewayConfig:
     judge_all_inputs: bool = False
     prompt_guard: bool = False
     archive_consolidated: bool = True
+    # Writes per session per source, by trust: the less trusted, the tighter. HIGH (the
+    # user) is unlimited.
     quota_low_writes_per_session: int = 20
+    quota_med_writes_per_session: int = 100
     med_sources: frozenset[str] = frozenset({"tool:calendar", "tool:crm"})
     risky_tools: frozenset[str] = frozenset({"send_email", "pay", "deploy", "share_file"})
     heuristics: HeuristicConfig = field(default_factory=HeuristicConfig)
@@ -40,7 +43,8 @@ class GatewayConfig:
 
 # Arm presets (SPEC §10). A0: plain store, everything in one prompt section, no defense.
 A0 = GatewayConfig(label_provenance=False, write_flagging=False, read_escaping=False,
-                   action_check=False, use_judge=False, quota_low_writes_per_session=10**9)
+                   action_check=False, use_judge=False, quota_low_writes_per_session=10**9,
+                   quota_med_writes_per_session=10**9)
 A2 = GatewayConfig()
 
 
@@ -60,7 +64,7 @@ class Gateway:
         self.judge = judge
         self.summarizer = summarizer
         self.config = config
-        self._low_writes: Counter[tuple[str, str, str]] = Counter()
+        self._writes: Counter[tuple[str, str, str]] = Counter()
         self._model_s = 0.0       # time spent in model calls during the current operation
 
     # -- write -------------------------------------------------------------------------
@@ -82,20 +86,26 @@ class Gateway:
         s = self._screen(text, label)
 
         quota_key = (tenant, session_id, source)
-        if trust == Trust.LOW and self._low_writes[quota_key] >= cfg.quota_low_writes_per_session:
+        quota = self._quota(trust)
+        if quota is not None and self._writes[quota_key] >= quota:
             self.store.append_ledger(tenant, "reject", None, {**s.detail, "reason": "quota_hit"})
             return WriteResult("rejected", None, s.flags | {"quota_hit"}, _ms(start))
 
         memory = Memory(str(uuid.uuid4()), s.text, s.label, s.flags, session_id, time.time())
         self._store(memory)
-        if trust == Trust.LOW:
-            self._low_writes[quota_key] += 1
+        if quota is not None:
+            self._writes[quota_key] += 1
         status = "quarantined" if "quarantined" in s.flags else "stored"
         self.store.append_ledger(tenant, "quarantine" if status == "quarantined" else "write",
                                  memory.id, {**s.detail, "flags": sorted(s.flags),
                                              "latency_ms": _ms(start),
                                              "model_ms": self._model_s * 1000})
         return WriteResult(status, memory.id, s.flags, _ms(start))
+
+    def _quota(self, trust: Trust) -> int | None:
+        """Writes allowed per session per source at this trust; None = unlimited (HIGH)."""
+        return {Trust.LOW: self.config.quota_low_writes_per_session,
+                Trust.MED: self.config.quota_med_writes_per_session}.get(trust)
 
     def trust_of(self, source: str) -> Trust:
         """Trust a source gets under this config (everything HIGH without provenance)."""
