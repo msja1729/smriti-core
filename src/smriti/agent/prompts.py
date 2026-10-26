@@ -21,14 +21,21 @@ SEALED_NOTE = ("Values like [PHONE_NUMBER:...] are the user's private data, encr
                "To use one, pass it to a tool exactly as written; never try to decode it.")
 
 
-def system_prompt(role: str, ctx: RenderedContext, guard: bool = False) -> str:
-    parts = [SYSTEM_TEMPLATE.format(role=role)]
-    if guard:
-        parts.append(GUARD)
+def memory_sections(ctx: RenderedContext) -> list[str]:
+    """The memory part of a system prompt: trusted memory as instructions, the rest as
+    quoted data. Shared with the public API (smriti.Smriti)."""
+    parts = []
     if ctx.instructions:
         parts.append("## Memory\n" + ctx.instructions)
     if ctx.data_block:
         parts.append("## Memory data\n" + DATA_PREAMBLE + "\n" + ctx.data_block)
     if SEALED.search(ctx.instructions) or SEALED.search(ctx.data_block):
         parts.append(SEALED_NOTE)
-    return "\n\n".join(parts)
+    return parts
+
+
+def system_prompt(role: str, ctx: RenderedContext, guard: bool = False) -> str:
+    parts = [SYSTEM_TEMPLATE.format(role=role)]
+    if guard:
+        parts.append(GUARD)
+    return "\n\n".join(parts + memory_sections(ctx))
