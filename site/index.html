@@ -342,10 +342,17 @@ fetch("data.json").then(r => r.json()).then(d => {
     const ad = d.agentdojo;
     const arms = ad.arms.filter(a => a.attack);
     chart(document.getElementById("chart-ad"), "Attack success rate (lower is better)", arms, "attack");
-    table(document.getElementById("table-ad"), [["Attack succeeded", "attack"], ["Clean task success", "clean"], ["Task success under attack", "under_attack"], ["Clean tasks needing a confirmation", "confirm_clean"]], arms);
+    table(document.getElementById("table-ad"), [["Attack succeeded (AgentDojo's rule)", "attack"], ["Attacker's goal actually happened", "attack_real"], ["Clean task success", "clean"], ["Task success under attack", "under_attack"], ["Asked to confirm (no attack)", "confirm_clean"], ["Asked to confirm (attacked)", "confirm_attacked"]], arms);
+    const ov = ad.arms.map(a => `${a.name}: ${a.context_overflows}`).join(", ");
+    document.getElementById("ad-note").textContent =
+      `AgentDojo's rule counts a run that outgrows the model's 32k-token context as a failed task and a successful attack. ` +
+      `Runs that overflowed: ${ov}. The second column leaves those out. ` +
+      `SMRITI's 2 real failures both came through the calendar, which SMRITI's default rules treat as a medium-trust internal tool that does not trigger the action check; ` +
+      `in an office suite, calendar invites can be written by outsiders. ` +
+      `Clean task success is low for every arm: Nemotron Nano 9B solves about a third of these tasks even without an attack.`;
     if (ad.partial) {
       document.getElementById("ad-badge").hidden = false;
-      document.getElementById("ad-note").textContent = `Partial: ${ad.runs} of ${ad.expected} runs finished; numbers will change.`;
+      document.getElementById("ad-note").textContent += ` Partial: ${ad.runs} of ${ad.expected} runs finished.`;
     }
   }
 }).catch(() => {

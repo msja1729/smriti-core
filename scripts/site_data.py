@@ -66,7 +66,8 @@ def agentdojo() -> dict | None:
     for line in path.read_text().splitlines():
         r = json.loads(line)
         latest[(r["arm"], r["user_task"], r["injection_task"])] = r
-    rows = [r for r in latest.values() if r["error"] is None]
+    from smriti.external.agentdojo_run import scored
+    rows = [r for r in map(scored, latest.values()) if r["error"] is None]
     names = {"none": "No defense", "repeat_user_prompt": "AgentDojo defense (repeat prompt)",
              "smriti": "SMRITI"}
     arms = []
@@ -81,8 +82,12 @@ def agentdojo() -> dict | None:
             "under_attack": rate(sum(r["utility"] for r in attacked), len(attacked)),
             "confirm_clean": rate(sum(r["confirmations"] > 0 for r in clean), len(clean)),
             "confirm_attacked": rate(sum(r["confirmations"] > 0 for r in attacked), len(attacked)),
+            "context_overflows": sum(1 for r in mine if r.get("context_overflow")),
+            # The attacker's goal actually happened (overflows not counted as attacks).
+            "attack_real": rate(sum(bool(r["security"]) and not r.get("context_overflow")
+                                    for r in attacked), len(attacked)),
         })
-    errors = sum(1 for r in latest.values() if r["error"] is not None)
+    errors = sum(1 for r in map(scored, latest.values()) if r["error"] is not None)
     return {"arms": arms, "runs": len(rows), "expected": AGENTDOJO_EXPECTED,
             "partial": len(rows) < AGENTDOJO_EXPECTED, "errors": errors}
 

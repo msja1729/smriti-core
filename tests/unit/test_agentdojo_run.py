@@ -118,3 +118,13 @@ def test_non_user_content_blocks_joined_for_vllm():
     assert ad._vllm_message({"role": "tool", "content": blocks})["content"] == "ab"
     assert ad._vllm_message({"role": "user", "content": blocks})["content"] == blocks
     assert ad._vllm_message({"role": "assistant", "content": None})["content"] is None
+
+
+def test_context_overflow_scored_as_agentdojo_does():
+    err = "BadRequestError: Error code: 400 - This model's maximum context length is 32768"
+    attacked = ad.scored({"injection_task": "i1", "error": err, "utility": None, "security": None})
+    clean = ad.scored({"injection_task": None, "error": err, "utility": None, "security": None})
+    assert attacked["error"] is None and attacked["utility"] is False and attacked["security"] is True
+    assert clean["utility"] is False and clean["security"] is None and clean["context_overflow"]
+    other = {"injection_task": "i1", "error": "APIConnectionError", "utility": None}
+    assert ad.scored(other) == other
