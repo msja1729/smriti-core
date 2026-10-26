@@ -96,10 +96,16 @@ class _PerThreadPii:
     def __init__(self, factory):
         self.factory, self.local = factory, threading.local()
 
-    def redact(self, text):
+    def _pii(self):
         if not hasattr(self.local, "pii"):
             self.local.pii = self.factory()
-        return self.local.pii.redact(text)
+        return self.local.pii
+
+    def redact(self, text, tenant=None):
+        return self._pii().redact(text, tenant)
+
+    def unseal(self, text, tenant):
+        return self._pii().unseal(text, tenant)
 
 
 def build_components(cfg: BenchConfig) -> Components:
@@ -107,7 +113,7 @@ def build_components(cfg: BenchConfig) -> Components:
     from smriti.models.hosted import (
         CachedEmbedder, CachedJudge, HostedConfig, NvidiaEmbedder, SafetyGuardJudge)
     from smriti.models.nim import NimChat, NimConfig, NimSummarizer
-    from smriti.models.pii import PresidioRedactor
+    from smriti.models.pii import PiiSealer, PresidioRedactor
 
     cache = DiskCache(cfg.cache_dir)
     llm = NimChat(NimConfig(base_url=cfg.agent_base_url, model=cfg.agent_model))
@@ -115,7 +121,9 @@ def build_components(cfg: BenchConfig) -> Components:
                         cache, cfg.judge_model)
     embedder = CachedEmbedder(NvidiaEmbedder(HostedConfig(cfg.hosted_base_url, cfg.embed_model)),
                               cache, cfg.embed_model)
-    return Components(llm, NimSummarizer(llm), embedder, judge, _PerThreadPii(PresidioRedactor))
+    sealer = PiiSealer.from_env()          # SMRITI_PII_KEY unset: redact, never seal
+    return Components(llm, NimSummarizer(llm), embedder, judge,
+                      _PerThreadPii(lambda: PresidioRedactor(sealer=sealer)))
 
 
 def pg_store_factory(dsn: str, run_id: str, embed_dim: int):

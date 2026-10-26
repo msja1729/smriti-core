@@ -68,10 +68,10 @@ class Agent:
 
     def _record_turn(self, user_text: str, session_id: str, episode_id: str,
                      nonce: str) -> int | None:
-        """Log the request (PII-redacted) so the Immune Auditor can replay it later.
+        """Log the request (PII-redacted or sealed) so the Immune Auditor can replay it later.
         Best effort: a logging failure must never block the user's turn."""
         try:
-            text = self.gateway.pii.redact(user_text).text
+            text = self.gateway.pii.redact(user_text, self.tenant).text
             return self.gateway.store.record_turn(self.tenant, episode_id, session_id, text,
                                                   time.time(), nonce)
         except Exception:

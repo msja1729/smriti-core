@@ -18,7 +18,7 @@ class WriteResult:
 
 @dataclass(frozen=True)
 class Screened:
-    text: str                      # PII-redacted
+    text: str                      # PII-redacted or sealed
     label: Label
     flags: frozenset[str]
     detail: dict                   # for the ledger; never contains raw text
@@ -66,7 +66,7 @@ def screen(
             if label.trust < Trust.HIGH:
                 flags.add("quarantined")
 
-    redacted = pii.redact(text)
+    redacted = pii.redact(text, label.tenant)
     detail["pii"] = sorted(redacted.found)
     if redacted.found:
         label = replace(label, sensitivity=Sensitivity.PII)

@@ -6,6 +6,8 @@ import os
 from dataclasses import dataclass
 from typing import Protocol
 
+from smriti.models.pii import SEALED
+
 
 @dataclass(frozen=True)
 class NimConfig:
@@ -95,6 +97,7 @@ class NimChat:
 SUMMARY_PROMPT = (
     "Summarize the following notes into a short, factual summary. "
     "Keep names, dates, amounts and addresses exactly as written.")
+SUMMARY_SEALED_NOTE = "Copy values like [PHONE_NUMBER:...] character for character."
 
 
 class NimSummarizer:
@@ -103,6 +106,9 @@ class NimSummarizer:
 
     def summarize(self, texts: list[str]) -> str:
         notes = "\n".join(f"- {t}" for t in texts)
-        reply = self.chat.chat([{"role": "system", "content": SUMMARY_PROMPT},
+        prompt = SUMMARY_PROMPT
+        if SEALED.search(notes):           # only then, so other prompts stay unchanged
+            prompt += " " + SUMMARY_SEALED_NOTE
+        reply = self.chat.chat([{"role": "system", "content": prompt},
                                 {"role": "user", "content": notes}], [])
         return (reply.content or "").strip()

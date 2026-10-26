@@ -53,7 +53,7 @@ def test_other_master_key_cannot_unseal(sealer):
 
 @pytest.mark.parametrize("change", [
     lambda c: c[:-6] + ("A" if c[-6] != "A" else "B") + c[-5:],   # one character altered
-    lambda c: c[:20],                                             # truncated
+    lambda c: c[:-4],                                             # truncated
     lambda c: c + "AAAA",                                         # extended
 ])
 def test_altered_ciphertext_is_rejected(sealer, change):
@@ -104,3 +104,9 @@ def test_fake_pii_leaves_sealed_values_alone(sealer):
     pii = FakePii(sealer=sealer)
     once = pii.redact(f"call {PHONE}", "t").text
     assert pii.redact(once, "t").text == once
+
+
+def test_ordinary_bracketed_text_is_not_a_sealed_value(sealer):
+    for text in ("[NOTE:see below]", "[TODO:call back]", "[A:" + "x" * 20 + "]"):
+        assert not SEALED.search(text)
+        assert sealer.unseal(text, "t").text == text

@@ -32,8 +32,10 @@ DEFAULT_FLAG_ONLY: tuple[str, ...] = ("EMAIL_ADDRESS", "IBAN_CODE")
 
 KEY_ENV = "SMRITI_PII_KEY"
 # A sealed value: "[ENTITY_TYPE:" + Presidio's urlsafe-base64 ciphertext + "]". None of these
-# characters are escaped by the read gate, so the marker reaches the model unchanged.
-SEALED = re.compile(r"\[([A-Z][A-Z_]*):([A-Za-z0-9_-]+={0,2})\]")
+# characters are escaped by the read gate, so the marker reaches the model unchanged. The
+# ciphertext (16-byte IV + at least one 16-byte block) is never shorter than 44 characters,
+# which keeps ordinary bracketed text like "[NOTE:see below]" from looking sealed.
+SEALED = re.compile(r"\[([A-Z][A-Z_]*):([A-Za-z0-9_-]{42,}={0,2})\]")
 # Encrypted together with the value and checked on decryption: AES-CBC has no integrity
 # check, so a wrong (other tenant's) key can still decrypt to garbage now and then.
 _CHECK = "smriti1:"
