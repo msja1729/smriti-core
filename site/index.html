@@ -128,7 +128,7 @@ footer { margin-top: 64px; padding-top: 16px; border-top: 1px solid var(--border
   <span class="brand">SMRITI</span>
   <span class="links" style="display:flex;gap:16px;flex-wrap:wrap">
     <a href="#how">How it works</a><a href="#demo">Demo</a><a href="#results">Results</a>
-    <a href="#use">Add it</a><a href="#limits">Limits</a>
+    <a href="#use">Add it</a>
   </span>
   <button class="theme-btn" id="theme" type="button" aria-label="Toggle dark mode">◐</button>
 </nav>
@@ -318,21 +318,6 @@ messages.append({"role": "tool", "tool_call_id": call_id, "content": str(result)
   acting. The tools part (step 5) is the hard stop.</p>
 </section>
 
-<section id="limits">
-  <h2>Limits</h2>
-  <ul>
-    <li><b>Single-session benchmarks.</b> InjecAgent and AgentDojo test injection that
-    arrives and acts in one conversation. Poison that waits in memory for a later session is
-    shown by the recorded demo above, not by a public benchmark.</li>
-    <li><b>Confirmations cost something.</b> Any untrusted text in context makes every risky
-    action need a "yes": 57 of 560 attacked AgentDojo runs
-    asked the user. The simulated user approved only correct actions; a real, tired user might
-    approve a bad one.</li>
-    <li><b>Medium-trust sources are not checked.</b> Internal tools such as the calendar are MED
-    and do not trigger the action check. Both of SMRITI's AgentDojo failures came through
-    attacker text in a calendar event.</li>
-  </ul>
-</section>
 
 
 <footer>
