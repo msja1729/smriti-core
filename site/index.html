@@ -219,6 +219,13 @@ footer { margin-top: 64px; padding-top: 16px; border-top: 1px solid var(--border
   <p>SMRITI is a Python library. It needs two hooks in an agent's harness: where memory is saved
   and loaded, and where tools run. Using only the memory hook gives labels and quoting, but not
   the hard stop on risky actions.</p>
+  <h3>Install</h3>
+  <p>SMRITI is not on PyPI yet, so install it straight from GitHub:</p>
+<pre><code>pip install git+https://github.com/msja1729/smriti-core.git</code></pre>
+  <p class="small">Needs Python 3.10 or newer, a Postgres database with the pgvector extension,
+  and an OpenAI-compatible model endpoint. Note: <code>pip install smriti</code> installs an
+  unrelated package with the same name.</p>
+  <h3>Add it to your agent</h3>
 <pre><code>from smriti import Smriti
 
 mem = Smriti(tenant="acme", confirm=ask_the_user)   # protect=False: same agent, no SMRITI
