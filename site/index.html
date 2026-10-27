@@ -124,7 +124,6 @@ footer { margin-top: 64px; padding-top: 16px; border-top: 1px solid var(--border
   <span class="links" style="display:flex;gap:16px;flex-wrap:wrap">
     <a href="#how">How it works</a><a href="#demo">Demo</a><a href="#results">Results</a>
     <a href="#use">Use it</a><a href="#limits">Limits</a>
-    <a href="https://github.com/msja1729/smriti-core">GitHub</a>
   </span>
   <button class="theme-btn" id="theme" type="button" aria-label="Toggle dark mode">◐</button>
 </nav>
@@ -192,8 +191,7 @@ footer { margin-top: 64px; padding-top: 16px; border-top: 1px solid var(--border
 <section id="results">
   <h2>Results</h2>
   <p>Pass or fail is always decided by code, never by an AI judge. Brackets are 95% confidence
-  ranges. Agent model: NVIDIA Nemotron Nano 9B v2, temperature 0. Full report:
-  <a href="https://github.com/msja1729/smriti-core/blob/main/docs/benchmarks.md">docs/benchmarks.md</a>.</p>
+  ranges. Agent model: NVIDIA Nemotron Nano 9B v2, temperature 0.</p>
 
   <h3>MemPoison-Bench <span class="small">(our benchmark: cross-session memory poisoning)</span></h3>
   <p class="muted">3 assistants (finance, DevOps, personal) × 4 attacks (direct, indirect,
@@ -243,15 +241,8 @@ system_prompt = BASE_PROMPT + ctx.prompt       # trusted memory as instructions,
 # Hook 2: tools
 @mem.tool(risky=True)                          # action check: asks the user when needed
 def send_email(to, subject, body, cc=()): ...</code></pre>
-  <p>A complete example agent, runnable with or without a model:</p>
-<pre><code>git clone https://github.com/msja1729/smriti-core && cd smriti-core && pip install -e .
-python examples/openai_agent.py --fake-model --no-protect   # the attacker gets the invoice
-python examples/openai_agent.py --fake-model --protect      # the attacker gets nothing</code></pre>
-  <p class="small">Guide: <a href="https://github.com/msja1729/smriti-core/blob/main/docs/adapter.md">docs/adapter.md</a> ·
-  Example: <a href="https://github.com/msja1729/smriti-core/blob/main/examples/openai_agent.py">examples/openai_agent.py</a>
-  (on Nemotron Nano 9B: without SMRITI the attacker is CC'd, with SMRITI it gets nothing) ·
-  A larger integration: SMRITI inside AgentDojo's agent pipeline,
-  <a href="https://github.com/msja1729/smriti-core/blob/main/src/smriti/external/agentdojo_run.py">agentdojo_run.py</a>.</p>
+  <p class="small">With an example agent on Nemotron Nano 9B: without SMRITI the attacker is CC'd
+  on the invoice; with SMRITI it gets nothing.</p>
 </section>
 
 <section id="limits">
@@ -277,8 +268,7 @@ python examples/openai_agent.py --fake-model --protect      # the attacker gets 
   MIT licensed · Agent: NVIDIA Nemotron Nano 9B v2 · Judge: Llama-3.1-Nemotron-Safety-Guard-8B v3 ·
   Embeddings: NVIDIA Nemotron · PII: Microsoft Presidio ·
   Benchmarks: <a href="https://github.com/uiuc-kang-lab/InjecAgent">InjecAgent</a>,
-  <a href="https://github.com/ethz-spylab/agentdojo">AgentDojo</a> ·
-  <a href="https://github.com/msja1729/smriti-core">Source on GitHub</a>
+  <a href="https://github.com/ethz-spylab/agentdojo">AgentDojo</a>
 </footer>
 </main>
 
