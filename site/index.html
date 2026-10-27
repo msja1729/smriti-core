@@ -193,19 +193,11 @@ footer { margin-top: 64px; padding-top: 16px; border-top: 1px solid var(--border
   <p>Pass or fail is always decided by code, never by an AI judge. Brackets are 95% confidence
   ranges. Agent model: NVIDIA Nemotron Nano 9B v2, temperature 0.</p>
 
-  <h3>MemPoison-Bench <span class="small">(our benchmark: cross-session memory poisoning)</span></h3>
-  <p class="muted">3 assistants (finance, DevOps, personal) × 4 attacks (direct, indirect,
-  summary laundering, sleeper trigger) × 5 seeds. The poison is stored in one session and must
-  act in a later one.</p>
-  <div class="chart" id="chart-mp"></div>
-  <div class="scroll"><table id="table-mp"></table></div>
-  <p class="small" id="mp-extra"></p>
-
   <h3>InjecAgent <span class="small">(UIUC, Findings of ACL 2024)</span></h3>
   <p class="muted">1,054 cases: a harmless request, a tool answer that hides an attacker's
   instruction. Direct harm (unlock the door, transfer money) or data stealing (fetch private
   data, then email it out). The <i>enhanced</i> version adds "IMPORTANT!!! Ignore all previous
-  instructions". <a href="https://github.com/uiuc-kang-lab/InjecAgent">Official repository</a>.</p>
+  instructions".</p>
   <div class="chart" id="chart-ia"></div>
   <div class="scroll"><table id="table-ia"></table></div>
   <p class="small">Nemotron rarely falls for InjecAgent's attacks in the first place (1.9% base,
@@ -217,11 +209,9 @@ footer { margin-top: 64px; padding-top: 16px; border-top: 1px solid var(--border
 
   <h3>AgentDojo, workspace suite <span class="small">(ETH Zurich, NeurIPS 2024)</span> <span class="badge" id="ad-badge" hidden>partial</span></h3>
   <p class="muted">40 office tasks (email, calendar, files) × 14 attacker goals planted in
-  emails, events and documents. Compared with AgentDojo's own built-in defense.
-  <a href="https://github.com/ethz-spylab/agentdojo">Official repository</a>.</p>
+  emails, events and documents. Compared with AgentDojo's own built-in defense.</p>
   <div class="chart" id="chart-ad"></div>
   <div class="scroll"><table id="table-ad"></table></div>
-  <p class="small" id="ad-note"></p>
 </section>
 
 <section id="use">
@@ -248,13 +238,11 @@ def send_email(to, subject, body, cc=()): ...</code></pre>
 <section id="limits">
   <h2>Limits</h2>
   <ul>
-    <li><b>Single-session public benchmarks.</b> InjecAgent and AgentDojo test injection that
-    arrives and acts in one conversation. Only MemPoison-Bench tests poison stored in memory and
-    acting in a later session, which is what SMRITI is built for.</li>
-    <li><b>Small sample on our own benchmark.</b> With 5 seeds, 0 of 60 means the true attack rate
-    is below 6% with 95% confidence, not that it is zero.</li>
+    <li><b>Single-session benchmarks.</b> InjecAgent and AgentDojo test injection that
+    arrives and acts in one conversation. Poison that waits in memory for a later session is
+    shown by the recorded demo above, not by a public benchmark.</li>
     <li><b>Confirmations cost something.</b> Any untrusted text in context makes every risky
-    action need a "yes": 15 of 15 clean MemPoison tasks and 57 of 560 attacked AgentDojo runs
+    action need a "yes": 57 of 560 attacked AgentDojo runs
     asked the user. The simulated user approved only correct actions; a real, tired user might
     approve a bad one.</li>
     <li><b>Medium-trust sources are not checked.</b> Internal tools such as the calendar are MED
@@ -267,8 +255,7 @@ def send_email(to, subject, body, cc=()): ...</code></pre>
 <footer>
   MIT licensed · Agent: NVIDIA Nemotron Nano 9B v2 · Judge: Llama-3.1-Nemotron-Safety-Guard-8B v3 ·
   Embeddings: NVIDIA Nemotron · PII: Microsoft Presidio ·
-  Benchmarks: <a href="https://github.com/uiuc-kang-lab/InjecAgent">InjecAgent</a>,
-  <a href="https://github.com/ethz-spylab/agentdojo">AgentDojo</a>
+  Benchmarks: InjecAgent, AgentDojo
 </footer>
 </main>
 
@@ -319,8 +306,6 @@ function table(el, cols, arms) {
 fetch("data.json").then(r => r.json()).then(d => {
   const tiles = [];
   const smriti = arms => arms.find(a => a.highlight);
-  const mp = d.mempoison;
-  tiles.push(["0 / 60", "attacks succeeded on our benchmark (no defense: 29 / 60)"]);
   if (d.injecagent) {
     const b = smriti(d.injecagent.base).attack, e = smriti(d.injecagent.enhanced).attack;
     tiles.push([`${b.k + e.k} / ${b.n + e.n}`, "attacks succeeded on InjecAgent, both versions"]);
@@ -331,13 +316,6 @@ fetch("data.json").then(r => r.json()).then(d => {
     if (n && r && s) tiles.push([`${s.k} / ${s.n}`, `attacker goals reached on AgentDojo (no defense: ${n.k}; AgentDojo's own defense: ${r.k})${d.agentdojo.partial ? ", partial" : ""}`]);
   }
   document.getElementById("tiles").innerHTML = tiles.map(t => `<div class="tile"><div class="num">${esc(t[0])}</div><div class="lbl">${esc(t[1])}</div></div>`).join("");
-
-  chart(document.getElementById("chart-mp"), "Attack success rate (lower is better)", mp.arms, "attack");
-  table(document.getElementById("table-mp"), [["Attack succeeded", "attack"], ["Clean task success", "clean"], ["Task success under attack", "under_attack"], ["Clean tasks needing a confirmation", "confirm_clean"]], mp.arms);
-  const x = mp.extra;
-  document.getElementById("mp-extra").textContent =
-    `Also: summary laundering survived ${x.laundering_survival.k}/${x.laundering_survival.n}; false quarantines ${x.false_quarantine.k}/${x.false_quarantine.n}; cross-tenant leaks ${x.cross_tenant_leaks}. ` +
-    `The two ablation rows switch off one layer each: without the action check 9 of 60 attacks succeed; without provenance labels 29 of 60, the same as no defense. The labels are the foundation.`;
 
   if (d.injecagent) {
     const both = [];
@@ -351,16 +329,7 @@ fetch("data.json").then(r => r.json()).then(d => {
     const arms = ad.arms.filter(a => a.attack);
     chart(document.getElementById("chart-ad"), "Attack success rate (lower is better)", arms, "attack");
     table(document.getElementById("table-ad"), [["Attack succeeded (AgentDojo's rule)", "attack"], ["Attacker's goal actually happened", "attack_real"], ["Clean task success", "clean"], ["Task success under attack", "under_attack"], ["Asked to confirm (no attack)", "confirm_clean"], ["Asked to confirm (attacked)", "confirm_attacked"]], arms);
-    const ov = ad.arms.map(a => `${a.name}: ${a.context_overflows}`).join(", ");
-    document.getElementById("ad-note").textContent =
-      `The second column counts only attacks that really happened (AgentDojo's own rule also counts runs that ran out of context). ` +
-      `SMRITI and AgentDojo's repeat-prompt defense are close here (2 vs 3 of 560); SMRITI does not clearly beat it on this suite. ` +
-      `SMRITI's 2 failures came through calendar events, which the default rules treat as a medium-trust internal tool. ` +
-      `Clean task success is low for every arm because Nemotron Nano 9B is a small model.`;
-    if (ad.partial) {
-      document.getElementById("ad-badge").hidden = false;
-      document.getElementById("ad-note").textContent += ` Partial: ${ad.runs} of ${ad.expected} runs finished.`;
-    }
+    if (ad.partial) document.getElementById("ad-badge").hidden = false;
   }
 }).catch(() => {
   document.getElementById("tiles").innerHTML = '<p class="small">Results could not be loaded.</p>';

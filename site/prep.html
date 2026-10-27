@@ -125,7 +125,7 @@ html{scroll-behavior:smooth}
   <span class="eyebrow">Memorise these</span>
   <h2>The pitch</h2>
   <h3>In three sentences</h3>
-  <p class="pitch">AI agents that remember can be poisoned: one planted sentence saved to memory can steer them weeks later. SMRITI sits between the agent and its memory and decides what each memory may do by <strong>who wrote it</strong>, not by how it is worded. On my benchmark, attacks dropped from 29 of 60 to 0 of 60, with no loss of normal task success.</p>
+  <p class="pitch">AI agents that remember can be poisoned: one planted sentence saved to memory can steer them weeks later. SMRITI sits between the agent and its memory and decides what each memory may do by <strong>who wrote it</strong>, not by how it is worded. On InjecAgent, a public benchmark of 2,108 attacks, none succeeded with SMRITI, even with its detector switched off.</p>
   <h3>The one idea to repeat</h3>
   <p class="pitch"><strong>Untrusted memory may inform the agent, never instruct it.</strong></p>
   <h3>The example to tell</h3>
@@ -168,7 +168,7 @@ html{scroll-behavior:smooth}
   <div class="qs">
     <details><summary>Why use the source instead of a better detector?</summary><div class="a">
       <p>An attacker can reword their text endlessly to get past a detector. They cannot change where the text came from: a web page is a web page however polite it sounds.</p>
-      <p>Proof from my results: with the detector switched off, attacks are still 0 of 60. With the labels switched off, attacks go back to 29 of 60, the same as no defence.</p></div></details>
+      <p>Proof from my results: on InjecAgent, with the detector switched off, attacks are still 0. The labels and the action check do the work, not the detector.</p></div></details>
     <details><summary>Who decides the source?</summary><div class="a"><p>The agent's code (the harness), at the point where a tool runs. The LLM never chooses it, so injected text can't claim to come from the user.</p></div></details>
     <details><summary>Why does an unknown source get LOW?</summary><div class="a"><p>Fail closed. Forgetting to configure a tool should make the system stricter, never looser.</p></div></details>
   </div>
@@ -189,9 +189,8 @@ html{scroll-behavior:smooth}
   </ul>
   <div class="qs">
     <details><summary>Walk me through the "always CC audit@evil.io" page.</summary><div class="a"><p>Source is a web page, so LOW. The rules see "remember", "always" and "CC + an email address", so it reads like an instruction. It isn't from the user, so it is quarantined: saved for the record, never recalled. No model call is needed.</p></div></details>
-    <details><summary>What if the attacker rewords it so no rule matches?</summary><div class="a"><p>Then it is saved as a normal LOW memory. The next two layers still apply: the read gate shows it only as quoted data, and the action check asks the user before any risky action. That is why detector-off is still 0 of 60.</p></div></details>
+    <details><summary>What if the attacker rewords it so no rule matches?</summary><div class="a"><p>Then it is saved as a normal LOW memory. The next two layers still apply: the read gate shows it only as quoted data, and the action check asks the user before any risky action. That is why attacks stay at 0 even with the detector switched off.</p></div></details>
     <details><summary>Why keep quarantined text instead of deleting it?</summary><div class="a"><p>As evidence of the attack, and so a mistake can be undone. Quarantine is reversible; deletion is not.</p></div></details>
-    <details><summary>Does it block normal memories by mistake?</summary><div class="a"><p>On my benchmark, 0 of 105 normal memories were quarantined.</p></div></details>
   </div>
 </section>
 
@@ -207,7 +206,7 @@ html{scroll-behavior:smooth}
     <li>If any LOW memory is recalled, the turn is marked <strong>tainted</strong>. The action check uses this.</li>
   </ul>
   <div class="qs">
-    <details><summary>Is quoting enough? Can't the model still follow quoted text?</summary><div class="a"><p>It can. Quoting lowers the chance but doesn't guarantee anything. With the action check switched off, 9 of 60 attacks still succeeded. The action check is the hard stop.</p></div></details>
+    <details><summary>Is quoting enough? Can't the model still follow quoted text?</summary><div class="a"><p>It can. Quoting lowers the chance but doesn't guarantee anything. That is why the action check exists: it is the hard stop that works even when the model is fooled.</p></div></details>
     <details><summary>Why escaping and a nonce?</summary><div class="a"><p>Escaping stops the text from closing the tag. The nonce means the real closing tag can't be guessed in advance. It works like protection against SQL injection: data can never be read as code.</p></div></details>
   </div>
 </section>
@@ -223,7 +222,7 @@ html{scroll-behavior:smooth}
     <li>If the check itself fails, the user is asked. If asking fails, the answer is no.</li>
   </ul>
   <div class="qs">
-    <details><summary>Doesn't asking the user all the time make it annoying?</summary><div class="a"><p>Yes, this is the main cost, and I report it. All 15 normal tasks on my benchmark needed one confirmation, because those assistants read web pages and email constantly. On AgentDojo it was 3 of 40 normal tasks.</p><p>To reduce it: only ask when the <em>destination</em> (recipient, account) came from untrusted text, and auto-approve destinations the user named.</p></div></details>
+    <details><summary>Doesn't asking the user all the time make it annoying?</summary><div class="a"><p>Yes, this is the main cost, and I report it. On AgentDojo, 3 of 40 normal tasks and 57 of 560 attacked runs needed a confirmation.</p><p>To reduce it: only ask when the <em>destination</em> (recipient, account) came from untrusted text, and auto-approve destinations the user named.</p></div></details>
     <details><summary>What can still get through?</summary><div class="a"><p>Harm through a tool not marked risky, a user who approves a bad action, and attacks through MED sources like the calendar, which don't trigger the check.</p></div></details>
   </div>
 </section>
@@ -239,7 +238,6 @@ html{scroll-behavior:smooth}
   </ul>
   <div class="qs">
     <details><summary>Why not let the LLM decide the summary's trust?</summary><div class="a"><p>Because the LLM can be fooled by the poison it is summarising. The label must come from code the attacker can't influence.</p></div></details>
-    <details><summary>Result?</summary><div class="a"><p>Laundering attacks: 0 of 15 succeeded with SMRITI.</p></div></details>
   </div>
 </section>
 
@@ -250,15 +248,14 @@ html{scroll-behavior:smooth}
   <p>Agent model: NVIDIA Nemotron Nano 9B. Pass/fail is decided by code, never by an AI judge.</p>
   <div class="tbl"><table>
     <tr><th>What</th><th>No defence</th><th>SMRITI</th></tr>
-    <tr><td>My benchmark (MemPoison): attacks that worked</td><td class="n">29 / 60</td><td class="n">0 / 60</td></tr>
-    <tr><td>Same, with the detector switched off</td><td class="n">–</td><td class="n">0 / 60</td></tr>
-    <tr><td>Normal tasks completed</td><td class="n">15 / 15</td><td class="n">15 / 15</td></tr>
-    <tr><td>InjecAgent (UIUC): attacks that worked</td><td class="n">20 + 68 of 1,054</td><td class="n">0</td></tr>
+    <tr><td>InjecAgent (UIUC), base version: attacks that worked</td><td class="n">20 / 1,054</td><td class="n">0 / 1,054</td></tr>
+    <tr><td>InjecAgent, enhanced version ("IMPORTANT!!! Ignore all previous instructions")</td><td class="n">68 / 1,054</td><td class="n">0 / 1,054</td></tr>
+    <tr><td>InjecAgent, SMRITI with the detector switched off</td><td class="n">–</td><td class="n">0 in both</td></tr>
     <tr><td>AgentDojo (ETH Zurich): attacks that really happened</td><td class="n">19 / 560</td><td class="n">2 / 560</td></tr>
   </table></div>
   <ul class="pts">
-    <li><strong>MemPoison</strong> is my own benchmark: 3 assistants (finance, DevOps, personal) × 4 attack types × 5 variations. The poison is saved in one session and must act in a later one.</li>
-    <li><strong>Switching layers off:</strong> without labels, 29 of 60 (same as no defence). Without the action check, 9 of 60. So the labels are the foundation and the action check is the hard stop.</li>
+    <li><strong>InjecAgent:</strong> a harmless request, and a tool answer that hides an attacker's instruction (unlock the door, transfer money, steal data). The model was fooled about as often with SMRITI as without, but every fooled action needed the user's yes and was refused.</li>
+    <li><strong>AgentDojo:</strong> 40 office tasks (email, calendar, files) with attacks planted in emails, events and documents.</li>
     <li><strong>AgentDojo honestly:</strong> AgentDojo's own defence got 3 of 560, so SMRITI is about level with it there, not clearly better.</li>
   </ul>
 </section>
@@ -270,9 +267,8 @@ html{scroll-behavior:smooth}
   <ul class="pts">
     <li><strong>Confirmations cost something.</strong> Users get asked often, and a tired user may approve a bad action.</li>
     <li><strong>MED sources aren't checked.</strong> Both AgentDojo failures came through calendar invites, which outsiders can write.</li>
-    <li><strong>Small sample.</strong> 0 of 60 is strong but not proof of zero; more tests would make it stronger.</li>
     <li><strong>One model, fixed attacks.</strong> Tested on one model with written attacks, not an attacker that adapts.</li>
-    <li><strong>The public benchmarks are single-session.</strong> Only my own benchmark tests poison that waits in memory for a later session.</li>
+    <li><strong>The benchmarks are single-session.</strong> They test attacks within one conversation. Poison that waits in memory for a later session is shown by the recorded demo on the project page.</li>
   </ul>
 </section>
 
@@ -301,11 +297,11 @@ html{scroll-behavior:smooth}
     <label><input type="checkbox" id="d2"><span>Tell the "CC audit@evil.io" example, with and without SMRITI.</span></label>
     <label><input type="checkbox" id="d3"><span>Give the trust of: the user, the calendar, a web page, a new unknown tool.</span></label>
     <label><input type="checkbox" id="d4"><span>Name the three layers and what each does.</span></label>
-    <label><input type="checkbox" id="d5"><span>Explain why quoting alone isn't enough (9 of 60).</span></label>
+    <label><input type="checkbox" id="d5"><span>Explain why quoting alone isn't enough, and what the hard stop is.</span></label>
     <label><input type="checkbox" id="d6"><span>Explain "tainted" and when the user is asked.</span></label>
     <label><input type="checkbox" id="d7"><span>Explain how summaries stop laundering.</span></label>
     <label><input type="checkbox" id="d8"><span>Say what "fail closed" means here.</span></label>
-    <label><input type="checkbox" id="d9"><span>Give the main results: 29 → 0 of 60, detector off still 0, AgentDojo 2 vs 3.</span></label>
+    <label><input type="checkbox" id="d9"><span>Give the main results: InjecAgent 0 attacks (even with the detector off), AgentDojo 2 vs 3.</span></label>
     <label><input type="checkbox" id="d10"><span>Name two limits honestly.</span></label>
   </div>
   <button class="reset" id="resetBtn" type="button">Clear ticks</button>
