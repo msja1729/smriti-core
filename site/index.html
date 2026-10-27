@@ -231,6 +231,22 @@ footer { margin-top: 64px; padding-top: 16px; border-top: 1px solid var(--border
 <pre><code>pip install git+https://github.com/msja1729/smriti-core.git</code></pre>
     <p class="small">For now SMRITI runs on the resources provided for the hackathon: an NVIDIA
     A100 serving Nemotron Nano 9B, and a Postgres database.</p>
+    <p class="what"><b>To link it to your own model and database, you need:</b></p>
+    <ul>
+      <li><b>Python 3.10 or newer.</b></li>
+      <li><b>PostgreSQL with the pgvector extension</b>, to keep memory between runs. You pass
+      its address as <code>store="postgresql://..."</code> in step 2. Without it, memory lives
+      only while the program runs.</li>
+      <li><b>Your agent's model</b>, behind any OpenAI-compatible endpoint (for example vLLM,
+      or NVIDIA's hosted API). Your agent keeps calling its model as before; SMRITI works with
+      whichever model it is.</li>
+      <li><b>Optional: an NVIDIA API key</b> (<code>NVIDIA_API_KEY</code>). SMRITI then uses
+      NVIDIA's models to search memory by meaning and to check unclear text. Without it, it
+      uses a simple built-in search and its own rules; the protection does not depend on
+      it.</li>
+    </ul>
+    <p class="small">Note: <code>pip install smriti</code> installs an unrelated package with
+    the same name. Use the GitHub command above.</p>
   </div></div>
 
   <div class="step"><span class="num">2</span><div>
