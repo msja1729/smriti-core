@@ -220,22 +220,7 @@
      0.035295328256842964
     ]
    },
-   "cross_tenant_leaks": 0,
-   "auditor_false_rollbacks": 0,
-   "auditor_caught": {
-    "No defense": [
-     26,
-     28
-    ],
-    "SMRITI": [
-     9,
-     9
-    ],
-    "SMRITI, detector off": [
-     12,
-     13
-    ]
-   }
+   "cross_tenant_leaks": 0
   }
  },
  "injecagent": {

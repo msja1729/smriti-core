@@ -131,7 +131,7 @@ footer { margin-top: 64px; padding-top: 16px; border-top: 1px solid var(--border
 
 <header>
   <h1>SMRITI: a memory firewall for AI agents</h1>
-  <p class="muted">Secure Memory Runtime: Integrity, Taint-tracking, Immunity.</p>
+  <p class="muted">Secure Memory Runtime for AI agents.</p>
   <p class="rule">Untrusted memory may <b>inform</b> the agent, never <b>instruct</b> it.</p>
   <p>Agents remember what they read. One planted sentence on a web page can steer an agent for
   weeks. SMRITI sits between an agent and its memory and decides what each memory may do by
@@ -179,12 +179,7 @@ footer { margin-top: 64px; padding-top: 16px; border-top: 1px solid var(--border
     <div class="card"><b>3. Action check</b>If anything untrusted is in the agent's context, a
     risky action (send, pay, share, delete, deploy) needs the user's confirmation. A fooled
     agent cannot quietly act.</div>
-    <div class="card"><b>Immune Auditor</b>After the fact, it replays a past turn with each
-    memory hidden. If the risky action disappears, that memory steered it: it is rolled back
-    with everything derived from it, and the affected actions are listed for review.</div>
   </div>
-  <p class="small">The core rules are proved in Lean 4: nothing below HIGH ever reaches the
-  instructions, and any untrusted input makes a summary untrusted.</p>
 </section>
 
 <section id="demo">
@@ -197,7 +192,7 @@ footer { margin-top: 64px; padding-top: 16px; border-top: 1px solid var(--border
 <section id="results">
   <h2>Results</h2>
   <p>Pass or fail is always decided by code, never by an AI judge. Brackets are 95% confidence
-  intervals (Wilson). Agent model: NVIDIA Nemotron Nano 9B v2, temperature 0. Full report:
+  ranges. Agent model: NVIDIA Nemotron Nano 9B v2, temperature 0. Full report:
   <a href="https://github.com/msja1729/smriti-core/blob/main/docs/benchmarks.md">docs/benchmarks.md</a>.</p>
 
   <h3>MemPoison-Bench <span class="small">(our benchmark: cross-session memory poisoning)</span></h3>
@@ -345,7 +340,6 @@ fetch("data.json").then(r => r.json()).then(d => {
       .map(name => d.agentdojo.arms.find(x => x.name === name).attack_real);
     if (n && r && s) tiles.push([`${s.k} / ${s.n}`, `attacker goals reached on AgentDojo (no defense: ${n.k}; AgentDojo's own defense: ${r.k})${d.agentdojo.partial ? ", partial" : ""}`]);
   }
-  tiles.push(["0", "innocent memories rolled back by the Immune Auditor"]);
   document.getElementById("tiles").innerHTML = tiles.map(t => `<div class="tile"><div class="num">${esc(t[0])}</div><div class="lbl">${esc(t[1])}</div></div>`).join("");
 
   chart(document.getElementById("chart-mp"), "Attack success rate (lower is better)", mp.arms, "attack");
@@ -353,8 +347,7 @@ fetch("data.json").then(r => r.json()).then(d => {
   const x = mp.extra;
   document.getElementById("mp-extra").textContent =
     `Also: summary laundering survived ${x.laundering_survival.k}/${x.laundering_survival.n}; false quarantines ${x.false_quarantine.k}/${x.false_quarantine.n}; cross-tenant leaks ${x.cross_tenant_leaks}. ` +
-    `Immune Auditor: ${x.auditor_false_rollbacks} false rollbacks; caught ` +
-    Object.entries(x.auditor_caught).map(([k, v]) => `${v[0]}/${v[1]} (${k})`).join(", ") + ` poisons. The two ablation rows switch off one layer each: without the action check 9 of 60 attacks succeed; without provenance labels 29 of 60, the same as no defense. The labels are the foundation.`;
+    `The two ablation rows switch off one layer each: without the action check 9 of 60 attacks succeed; without provenance labels 29 of 60, the same as no defense. The labels are the foundation.`;
 
   if (d.injecagent) {
     const both = [];
@@ -370,13 +363,10 @@ fetch("data.json").then(r => r.json()).then(d => {
     table(document.getElementById("table-ad"), [["Attack succeeded (AgentDojo's rule)", "attack"], ["Attacker's goal actually happened", "attack_real"], ["Clean task success", "clean"], ["Task success under attack", "under_attack"], ["Asked to confirm (no attack)", "confirm_clean"], ["Asked to confirm (attacked)", "confirm_attacked"]], arms);
     const ov = ad.arms.map(a => `${a.name}: ${a.context_overflows}`).join(", ");
     document.getElementById("ad-note").textContent =
-      `AgentDojo's rule counts a run that outgrows the model's 32k-token context as a failed task and a successful attack. ` +
-      `Runs that overflowed: ${ov}. The second column leaves those out. ` +
-      `SMRITI's 2 real failures both came through the calendar, which SMRITI's default rules treat as a medium-trust internal tool that does not trigger the action check; ` +
-      `in an office suite, calendar invites can be written by outsiders. ` +
-      `Clean task success is low for every arm: Nemotron Nano 9B solves about a third of these tasks even without an attack. ` +
-      `In short: on attacks that really happened, SMRITI (2 of 560) and AgentDojo's repeat-prompt defense (3 of 560) are close on this suite, ` +
-      `and the repeat-prompt defense kept more tasks working under attack (167 vs 151 of 560); SMRITI does not clearly beat it here.`;
+      `The second column counts only attacks that really happened (AgentDojo's own rule also counts runs that ran out of context). ` +
+      `SMRITI and AgentDojo's repeat-prompt defense are close here (2 vs 3 of 560); SMRITI does not clearly beat it on this suite. ` +
+      `SMRITI's 2 failures came through calendar events, which the default rules treat as a medium-trust internal tool. ` +
+      `Clean task success is low for every arm because Nemotron Nano 9B is a small model.`;
     if (ad.partial) {
       document.getElementById("ad-badge").hidden = false;
       document.getElementById("ad-note").textContent += ` Partial: ${ad.runs} of ${ad.expected} runs finished.`;
